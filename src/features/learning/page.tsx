@@ -1,163 +1,189 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { GraduationCapIcon, PlusIcon } from '../../components/icons'
 import { Badge, PageIntro, Panel, ProgressBar } from '../../components/ui'
 import { useAppContext } from '../../context/app-context'
 
 export function LearningPage() {
   const { addLearningItem, learningItems, updateLearningItem } = useAppContext()
-  const [selectedId, setSelectedId] = useState(learningItems[0]?.id ?? '')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(learningItems[0]?.id ?? null)
+  const [title, setTitle] = useState('')
+  const [topic, setTopic] = useState('')
+  const [nextStep, setNextStep] = useState('')
+  const [resourceLink, setResourceLink] = useState('')
   const selectedItem = learningItems.find((item) => item.id === selectedId) ?? learningItems[0]
-  const activeItems = learningItems.filter((item) => item.stage !== 'Completed').length
-  const averageProgress = learningItems.length
-    ? Math.round(
-        learningItems.reduce((total, item) => total + item.progressPercent, 0) /
-          learningItems.length,
-      )
-    : 0
+
+  const sortedItems = useMemo(
+    () => [...learningItems].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [learningItems],
+  )
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setTitle('')
+    setTopic('')
+    setNextStep('')
+    setResourceLink('')
+  }
 
   return (
     <div className="page-stack">
       <PageIntro
-        eyebrow="Learning"
-        title="Learning tracker"
-        description="Turn vague learning goals into tracked stages, visible progress, and an explicit next step."
+        title="Learning Tracker"
         actions={
-          <button className="primary-button" onClick={addLearningItem}>
-            + Add Learning Item
+          <button className="primary-button page-cta-button" onClick={() => setIsModalOpen(true)}>
+            <PlusIcon className="button-icon" />
+            <span>Add Topic</span>
           </button>
         }
       />
 
-      <section className="snapshot-grid snapshot-grid-learning">
-        <Panel className="snapshot-card snapshot-card-accent">
-          <p className="snapshot-value">{learningItems.length}</p>
-          <p className="snapshot-label">Tracks</p>
-        </Panel>
-        <Panel className="snapshot-card">
-          <p className="snapshot-value">{activeItems}</p>
-          <p className="snapshot-label">Active</p>
-        </Panel>
-        <Panel className="snapshot-card">
-          <p className="snapshot-value">{averageProgress}%</p>
-          <p className="snapshot-label">Average progress</p>
-        </Panel>
-      </section>
+      {sortedItems.length ? (
+        <div className="learning-screen-grid">
+          <section className="learning-topic-grid">
+            {sortedItems.map((item) => (
+              <button
+                key={item.id}
+                className={selectedItem?.id === item.id ? 'learning-topic-card learning-topic-card-active' : 'learning-topic-card'}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <div className="learning-topic-head">
+                  <Badge tone="info">{item.stage}</Badge>
+                  <span>{item.progressPercent}%</span>
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.topic || 'No category'}</p>
+                <ProgressBar value={item.progressPercent} />
+                <small>{item.nextStep || 'No next step yet.'}</small>
+              </button>
+            ))}
+          </section>
 
-      <div className="learning-layout">
-        <section className="learning-grid">
-          {learningItems.map((item) => (
-            <button
-              key={item.id}
-              className={`learning-card ${selectedItem?.id === item.id ? 'learning-card-active' : ''}`}
-              onClick={() => setSelectedId(item.id)}
-            >
-              <div className="learning-card-head">
-                <Badge tone="info">{item.stage}</Badge>
-                <span>{item.progressPercent}%</span>
+          {selectedItem ? (
+            <Panel className="learning-edit-panel">
+              <div className="modal-header">
+                <div>
+                  <h3>{selectedItem.title}</h3>
+                  <p className="modal-subcopy">{selectedItem.topic || 'Learning topic'}</p>
+                </div>
+                <Badge tone="info">{selectedItem.stage}</Badge>
               </div>
-              <h3>{item.title}</h3>
-              <p>{item.topic}</p>
-              <ProgressBar value={item.progressPercent} />
-              <p className="muted-copy">{item.nextStep}</p>
-              <div className="learning-card-footer">
-                <span>{item.resourceLink ? 'Resource linked' : 'No resource yet'}</span>
-                <span>{item.targetCompletionDate ?? 'No target date'}</span>
-              </div>
-            </button>
-          ))}
-        </section>
 
-        {selectedItem ? (
-          <Panel className="learning-detail">
-            <div className="learning-detail-header">
-              <div>
-                <p className="eyebrow">Current item</p>
-                <h3>{selectedItem.title}</h3>
-              </div>
-              <Badge tone="info">{selectedItem.stage}</Badge>
+              <label className="field">
+                <span>Title</span>
+                <input
+                  value={selectedItem.title}
+                  onChange={(event) =>
+                    updateLearningItem(selectedItem.id, { title: event.target.value })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Topic / Category</span>
+                <input
+                  value={selectedItem.topic}
+                  onChange={(event) =>
+                    updateLearningItem(selectedItem.id, { topic: event.target.value })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Next Step</span>
+                <textarea
+                  rows={4}
+                  value={selectedItem.nextStep}
+                  onChange={(event) =>
+                    updateLearningItem(selectedItem.id, { nextStep: event.target.value })
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>Resource Link</span>
+                <input
+                  value={selectedItem.resourceLink}
+                  onChange={(event) =>
+                    updateLearningItem(selectedItem.id, { resourceLink: event.target.value })
+                  }
+                />
+              </label>
+            </Panel>
+          ) : null}
+        </div>
+      ) : (
+        <div className="page-zero-state">
+          <GraduationCapIcon className="page-zero-icon" />
+          <p>No learning topics yet. Add one to start tracking progress.</p>
+        </div>
+      )}
+
+      {isModalOpen ? (
+        <div className="overlay" onClick={closeModal}>
+          <div className="composer" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add Learning Topic</h3>
+              <button className="icon-button" onClick={closeModal}>
+                ×
+              </button>
             </div>
-            <div className="learning-detail-metrics">
-              <div className="project-metric">
-                <span>Progress</span>
-                <strong>{selectedItem.progressPercent}%</strong>
-              </div>
-              <div className="project-metric">
-                <span>Target</span>
-                <strong>{selectedItem.targetCompletionDate ?? 'None'}</strong>
-              </div>
-            </div>
-            <div>
-              <p className="eyebrow">Current item</p>
-              <h3>Details</h3>
-            </div>
+
             <label className="field">
               <span>Title</span>
               <input
-                value={selectedItem.title}
-                onChange={(event) =>
-                  updateLearningItem(selectedItem.id, { title: event.target.value })
-                }
+                autoFocus
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="e.g. React Server Components"
               />
             </label>
+
             <label className="field">
-              <span>Stage</span>
-              <select
-                value={selectedItem.stage}
-                onChange={(event) =>
-                  updateLearningItem(selectedItem.id, {
-                    stage: event.target.value as typeof selectedItem.stage,
-                  })
-                }
-              >
-                {[
-                  'Not Started',
-                  'Beginner',
-                  'Intermediate',
-                  'Advanced',
-                  'Applied Practice',
-                  'Completed',
-                ].map((stage) => (
-                  <option key={stage} value={stage}>
-                    {stage}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Progress</span>
+              <span>Topic / Category</span>
               <input
-                type="range"
-                min="0"
-                max="100"
-                value={selectedItem.progressPercent}
-                onChange={(event) =>
-                  updateLearningItem(selectedItem.id, {
-                    progressPercent: Number(event.target.value),
-                  })
-                }
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder="e.g. Frontend"
               />
             </label>
+
             <label className="field">
-              <span>Next step</span>
-              <textarea
-                rows={5}
-                value={selectedItem.nextStep}
-                onChange={(event) =>
-                  updateLearningItem(selectedItem.id, { nextStep: event.target.value })
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Resource link</span>
+              <span>Next Step</span>
               <input
-                value={selectedItem.resourceLink}
-                onChange={(event) =>
-                  updateLearningItem(selectedItem.id, { resourceLink: event.target.value })
-                }
+                value={nextStep}
+                onChange={(event) => setNextStep(event.target.value)}
+                placeholder="What to do next?"
               />
             </label>
-          </Panel>
-        ) : null}
-      </div>
+
+            <label className="field">
+              <span>Resource Link</span>
+              <input
+                value={resourceLink}
+                onChange={(event) => setResourceLink(event.target.value)}
+                placeholder="https://..."
+              />
+            </label>
+
+            <button
+              className="primary-button modal-submit"
+              disabled={!title.trim()}
+              onClick={() => {
+                addLearningItem({
+                  title,
+                  topic,
+                  nextStep,
+                  resourceLink,
+                })
+                closeModal()
+              }}
+            >
+              Add Topic
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

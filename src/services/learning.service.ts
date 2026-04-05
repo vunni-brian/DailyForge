@@ -1,17 +1,20 @@
 import { createId, nowIso } from '../lib/core'
-import type { LearningItem, WorkspaceState } from '../types'
+import type { CreateLearningItemInput, LearningItem, WorkspaceState } from '../types'
 
 export const learningService = {
-  createLearningItem(workspace: WorkspaceState): WorkspaceState {
+  createLearningItem(
+    workspace: WorkspaceState,
+    input: CreateLearningItemInput,
+  ): WorkspaceState {
     const createdAt = nowIso()
     const learningItem: LearningItem = {
       id: createId('learning'),
-      title: 'New Learning Item',
-      topic: 'Topic',
+      title: input.title,
+      topic: input.topic ?? '',
       stage: 'Not Started',
       progressPercent: 0,
-      nextStep: 'Define the very next deliberate practice step.',
-      resourceLink: '',
+      nextStep: input.nextStep ?? '',
+      resourceLink: input.resourceLink ?? '',
       targetCompletionDate: null,
       createdAt,
       updatedAt: createdAt,

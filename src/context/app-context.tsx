@@ -20,7 +20,9 @@ import {
 } from '../repositories/workspace.repository'
 import type {
   ComposerState,
+  CreateLearningItemInput,
   CreateNoteInput,
+  CreateProjectInput,
   CreateTaskInput,
   DailyReview,
   FocusSession,
@@ -48,11 +50,11 @@ interface AppContextValue {
   addTask: (input: CreateTaskInput) => void
   updateTask: (taskId: string, patch: Partial<Task>) => void
   moveTask: (taskId: string, status: TaskStatus) => void
-  addProject: () => void
+  addProject: (input: CreateProjectInput) => void
   updateProject: (projectId: string, patch: Partial<Project>) => void
   addNote: (input: CreateNoteInput) => void
   updateNote: (noteId: string, patch: Partial<Note>) => void
-  addLearningItem: () => void
+  addLearningItem: (input: CreateLearningItemInput) => void
   updateLearningItem: (itemId: string, patch: Partial<LearningItem>) => void
   saveReview: (reviewDate: string, patch: ReviewDraft) => void
   updateSettings: (patch: Partial<SettingsState>) => void
@@ -160,8 +162,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     setWorkspace((current) => taskService.moveTaskStatus(current, taskId, status))
   }
 
-  const addProject = () => {
-    setWorkspace((current) => projectService.createProject(current))
+  const addProject = (input: CreateProjectInput) => {
+    setWorkspace((current) => projectService.createProject(current, input))
   }
 
   const updateProject = (projectId: string, patch: Partial<Project>) => {
@@ -178,8 +180,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     setWorkspace((current) => noteService.updateNote(current, noteId, patch))
   }
 
-  const addLearningItem = () => {
-    setWorkspace((current) => learningService.createLearningItem(current))
+  const addLearningItem = (input: CreateLearningItemInput) => {
+    setWorkspace((current) => learningService.createLearningItem(current, input))
   }
 
   const updateLearningItem = (itemId: string, patch: Partial<LearningItem>) => {

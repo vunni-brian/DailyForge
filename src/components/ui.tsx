@@ -38,17 +38,17 @@ export function PageIntro({
   description,
   actions,
 }: {
-  eyebrow: string
+  eyebrow?: string
   title: string
-  description: string
+  description?: string
   actions?: ReactNode
 }) {
   return (
     <div className="page-intro">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
+      <div className="page-intro-copy">
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1 className="page-title">{title}</h1>
-        <p className="page-description">{description}</p>
+        {description ? <p className="page-description">{description}</p> : null}
       </div>
       {actions ? <div className="page-actions">{actions}</div> : null}
     </div>

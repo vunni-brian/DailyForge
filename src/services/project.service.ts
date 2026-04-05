@@ -1,16 +1,19 @@
 import { createId, nowIso } from '../lib/core'
-import type { Project, WorkspaceState } from '../types'
+import type { CreateProjectInput, Project, WorkspaceState } from '../types'
 
 export const projectService = {
-  createProject(workspace: WorkspaceState): WorkspaceState {
+  createProject(
+    workspace: WorkspaceState,
+    input: CreateProjectInput,
+  ): WorkspaceState {
     const createdAt = nowIso()
     const project: Project = {
       id: createId('project'),
-      name: 'New Project',
-      description: 'Define the scope, objective, and next milestone.',
-      color: '#818cf8',
-      status: 'Planned',
-      targetDate: null,
+      name: input.name,
+      description: input.description ?? '',
+      color: input.color ?? '#f2a52b',
+      status: input.status ?? 'Planned',
+      targetDate: input.targetDate ?? null,
       progressPercent: 0,
       createdAt,
       updatedAt: createdAt,
