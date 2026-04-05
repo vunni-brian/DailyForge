@@ -27,11 +27,20 @@ export function DashboardPage() {
     timer,
   } = useAppContext()
 
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
+  const greeting =
+    now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
   const topPriorities = getTopPriorities(tasks)
   const todayTasks = tasks.filter((task) => task.status === 'Today')
+  const executionTasks = tasks.filter(
+    (task) => task.status === 'Today' || task.status === 'In Progress',
+  )
   const overdueTasks = tasks.filter(isOverdue)
   const activeProjects = projects.filter((project) => project.status !== 'Archived')
   const focusToday = getTodayFocusMinutes(focusSessions)
+  const completedToday = tasks.filter((task) => task.completedAt?.startsWith(today)).length
+  const blockedTasks = tasks.filter((task) => task.status === 'Blocked').length
   const nextLearning = [...learningItems].sort(
     (left, right) => right.progressPercent - left.progressPercent,
   )[0]
@@ -41,9 +50,28 @@ export function DashboardPage() {
     <div className="page-stack">
       <PageIntro
         eyebrow="Dashboard"
-        title="Daily control center"
-        description="See the work that matters, start focus quickly, and keep active projects visible without scrolling."
+        title={greeting}
+        description="See the work that matters, start focus quickly, and keep active projects visible without losing the thread."
       />
+
+      <section className="dashboard-stats">
+        <Panel className="stat-card stat-card-accent">
+          <p className="stat-card-value">{executionTasks.length}</p>
+          <p className="stat-card-label">Today queue</p>
+        </Panel>
+        <Panel className="stat-card">
+          <p className="stat-card-value">{completedToday}</p>
+          <p className="stat-card-label">Completed today</p>
+        </Panel>
+        <Panel className="stat-card">
+          <p className="stat-card-value">{formatMinutes(focusToday)}</p>
+          <p className="stat-card-label">Focus time</p>
+        </Panel>
+        <Panel className="stat-card">
+          <p className="stat-card-value">{blockedTasks}</p>
+          <p className="stat-card-label">Blocked items</p>
+        </Panel>
+      </section>
 
       <section className="dashboard-priorities">
         {topPriorities.map((task) => (

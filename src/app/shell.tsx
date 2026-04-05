@@ -9,14 +9,14 @@ import { useAppContext } from '../context/app-context'
 import { cx, formatLongDate } from '../lib/helpers'
 
 const navItems = [
-  { label: 'Dashboard', path: '/dashboard', shortcut: '1' },
-  { label: 'Tasks', path: '/tasks', shortcut: '2' },
-  { label: 'Projects', path: '/projects', shortcut: '3' },
-  { label: 'Notes', path: '/notes', shortcut: '4' },
-  { label: 'Learning', path: '/learning', shortcut: '5' },
-  { label: 'Focus', path: '/focus', shortcut: '6' },
-  { label: 'Reviews', path: '/reviews', shortcut: '7' },
-  { label: 'Settings', path: '/settings', shortcut: ',' },
+  { label: 'Dashboard', path: '/dashboard', shortcut: '1', glyph: 'DB' },
+  { label: 'Tasks', path: '/tasks', shortcut: '2', glyph: 'TS' },
+  { label: 'Projects', path: '/projects', shortcut: '3', glyph: 'PR' },
+  { label: 'Notes', path: '/notes', shortcut: '4', glyph: 'NT' },
+  { label: 'Learning', path: '/learning', shortcut: '5', glyph: 'LN' },
+  { label: 'Focus', path: '/focus', shortcut: '6', glyph: 'FC' },
+  { label: 'Reviews', path: '/reviews', shortcut: '7', glyph: 'RV' },
+  { label: 'Settings', path: '/settings', shortcut: ',', glyph: 'ST' },
 ] as const
 
 export function AppShell() {
@@ -36,6 +36,8 @@ export function AppShell() {
   } = useAppContext()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const activeItem =
+    navItems.find((item) => location.pathname.startsWith(item.path)) ?? navItems[0]
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -111,9 +113,11 @@ export function AppShell() {
         <aside className="sidebar">
           <div className="brand-block">
             <div className="brand-mark">DF</div>
-            <div>
-              <p className="brand-kicker">Daily execution OS</p>
-              <h2>DailyForge</h2>
+            <div className="brand-copy">
+              <p className="brand-kicker">Desktop planner</p>
+              <h2>
+                Daily<span className="text-gradient-forge">Forge</span>
+              </h2>
             </div>
           </div>
 
@@ -126,49 +130,56 @@ export function AppShell() {
                   cx('sidebar-link', isActive && 'sidebar-link-active')
                 }
               >
-                <span>{item.label}</span>
+                <span className="sidebar-link-copy">
+                  <span className="sidebar-link-icon">{item.glyph}</span>
+                  <span>{item.label}</span>
+                </span>
                 <kbd>{item.shortcut}</kbd>
               </NavLink>
             ))}
           </nav>
 
-          <div className="sidebar-footer panel">
-            <p className="eyebrow">Daily rhythm</p>
-            <h3>Morning clarity, evening closure.</h3>
-            <p className="muted-copy">
-              Build from one place. Capture fast. Finish deliberately.
-            </p>
+          <div className="sidebar-footer">
+            <p className="sidebar-footer-label">Focused planning for desktop.</p>
+            <span>v0.1 desktop preview</span>
           </div>
         </aside>
 
         <div className="shell-main">
           <header className="topbar">
             <div className="topbar-copy">
-              <p className="eyebrow">Today</p>
-              <h2>{formatLongDate(new Date())}</h2>
+              <p className="eyebrow">Workspace</p>
+              <h2>{activeItem.label}</h2>
             </div>
 
-            <div className="topbar-actions">
-              <button className="ghost-button search-trigger" onClick={() => setPaletteOpen(true)}>
-                Search
-                <span>Ctrl + K</span>
-              </button>
-              <button className="primary-button" onClick={() => openComposer('task')}>
-                + Quick Add
-              </button>
-              <button
-                className="ghost-button"
-                onClick={() =>
-                  updateSettings({
-                    theme: settings.theme === 'dark' ? 'light' : 'dark',
-                  })
-                }
-              >
-                {settings.theme === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              <button className="ghost-button" onClick={() => navigate('/settings')}>
-                Settings
-              </button>
+            <div className="topbar-cluster">
+              <div className="topbar-status">
+                <span className="topbar-status-dot" />
+                <span>{formatLongDate(new Date())}</span>
+              </div>
+
+              <div className="topbar-actions">
+                <button className="ghost-button search-trigger" onClick={() => setPaletteOpen(true)}>
+                  Search workspace
+                  <kbd>Ctrl + K</kbd>
+                </button>
+                <button className="primary-button" onClick={() => openComposer('task')}>
+                  + Quick Add
+                </button>
+                <button
+                  className="ghost-button"
+                  onClick={() =>
+                    updateSettings({
+                      theme: settings.theme === 'dark' ? 'light' : 'dark',
+                    })
+                  }
+                >
+                  {settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                </button>
+                <button className="ghost-button" onClick={() => navigate('/settings')}>
+                  Settings
+                </button>
+              </div>
             </div>
           </header>
 

@@ -12,6 +12,9 @@ export function ProjectsPage() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Overview')
   const selectedProjectId = searchParams.get('project') ?? projects[0]?.id
   const selectedProject = projects.find((project) => project.id === selectedProjectId)
+  const activeProjectsCount = projects.filter((project) => project.status === 'Active').length
+  const blockedTasksCount = tasks.filter((task) => task.status === 'Blocked').length
+  const linkedNotesCount = notes.filter((note) => note.projectId).length
 
   return (
     <div className="page-stack">
@@ -26,6 +29,25 @@ export function ProjectsPage() {
         }
       />
 
+      <section className="snapshot-grid snapshot-grid-projects">
+        <Panel className="snapshot-card snapshot-card-accent">
+          <p className="snapshot-value">{projects.length}</p>
+          <p className="snapshot-label">Tracked projects</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{activeProjectsCount}</p>
+          <p className="snapshot-label">Active</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{blockedTasksCount}</p>
+          <p className="snapshot-label">Blocked tasks</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{linkedNotesCount}</p>
+          <p className="snapshot-label">Linked notes</p>
+        </Panel>
+      </section>
+
       <section className="project-grid">
         {projects.map((project) => {
           const linkedTasks = tasks.filter((task) => task.projectId === project.id)
@@ -37,17 +59,20 @@ export function ProjectsPage() {
               className={`project-card ${selectedProjectId === project.id ? 'project-card-active' : ''}`}
               onClick={() => setSearchParams({ project: project.id })}
             >
-              <div className="section-row">
-                <div className="project-accent" style={{ background: project.color }} />
-                <Badge tone={project.status === 'Active' ? 'success' : 'warning'}>
-                  {project.status}
-                </Badge>
+              <div className="project-card-header">
+                <div className="project-card-title">
+                  <div className="project-accent" style={{ background: project.color }} />
+                  <div>
+                    <h3>{project.name}</h3>
+                    <p>{project.description}</p>
+                  </div>
+                </div>
+                <Badge tone={project.status === 'Active' ? 'success' : 'warning'}>{project.status}</Badge>
               </div>
-              <h3>{project.name}</h3>
-              <p>{project.description}</p>
               <ProgressBar value={progress} color={project.color} />
-              <div className="task-card-meta">
+              <div className="project-card-stats">
                 <span>{linkedTasks.filter((task) => task.status !== 'Done').length} active tasks</span>
+                <span>{linkedTasks.filter((task) => task.status === 'Blocked').length} blocked</span>
                 <span>{progress}%</span>
               </div>
             </button>
@@ -75,6 +100,37 @@ export function ProjectsPage() {
               </Badge>
               <strong>{getProjectProgress(selectedProject, tasks)}%</strong>
               <span className="muted-copy">{formatShortDate(selectedProject.targetDate)}</span>
+            </div>
+          </div>
+
+          <div className="project-hero-metrics">
+            <div className="project-metric">
+              <span>Tasks</span>
+              <strong>{tasks.filter((task) => task.projectId === selectedProject.id).length}</strong>
+            </div>
+            <div className="project-metric">
+              <span>Open</span>
+              <strong>
+                {
+                  tasks.filter(
+                    (task) => task.projectId === selectedProject.id && task.status !== 'Done',
+                  ).length
+                }
+              </strong>
+            </div>
+            <div className="project-metric">
+              <span>Notes</span>
+              <strong>{notes.filter((note) => note.projectId === selectedProject.id).length}</strong>
+            </div>
+            <div className="project-metric">
+              <span>Blocked</span>
+              <strong>
+                {
+                  tasks.filter(
+                    (task) => task.projectId === selectedProject.id && task.status === 'Blocked',
+                  ).length
+                }
+              </strong>
             </div>
           </div>
 
@@ -157,7 +213,7 @@ export function ProjectsPage() {
                   <div key={task.id} className="stack-row">
                     <div>
                       <strong>{task.title}</strong>
-                      <p className="muted-copy">{task.status}</p>
+                      <p className="muted-copy">{task.status} · {formatShortDate(task.dueDate)}</p>
                     </div>
                     <Badge tone={task.status === 'Blocked' ? 'danger' : 'info'}>
                       {task.priority}
@@ -169,17 +225,24 @@ export function ProjectsPage() {
 
           {activeTab === 'Notes' ? (
             <div className="stack-list">
-              {notes.filter((note) => note.projectId === selectedProject.id).map((note) => (
-                <div key={note.id} className="stack-row">
-                  <div>
-                    <strong>{note.title}</strong>
-                    <p className="muted-copy">{note.type}</p>
+              {notes.filter((note) => note.projectId === selectedProject.id).length ? (
+                notes.filter((note) => note.projectId === selectedProject.id).map((note) => (
+                  <div key={note.id} className="stack-row">
+                    <div>
+                      <strong>{note.title}</strong>
+                      <p className="muted-copy">{note.type}</p>
+                    </div>
+                    <Badge tone={note.pinned ? 'success' : 'neutral'}>
+                      {note.pinned ? 'Pinned' : 'Open'}
+                    </Badge>
                   </div>
-                  <Badge tone={note.pinned ? 'success' : 'neutral'}>
-                    {note.pinned ? 'Pinned' : 'Open'}
-                  </Badge>
-                </div>
-              ))}
+                ))
+              ) : (
+                <EmptyState
+                  title="No project notes yet"
+                  description="Link notes to this project to keep the working context together."
+                />
+              )}
             </div>
           ) : null}
 

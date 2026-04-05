@@ -6,6 +6,13 @@ export function LearningPage() {
   const { addLearningItem, learningItems, updateLearningItem } = useAppContext()
   const [selectedId, setSelectedId] = useState(learningItems[0]?.id ?? '')
   const selectedItem = learningItems.find((item) => item.id === selectedId) ?? learningItems[0]
+  const activeItems = learningItems.filter((item) => item.stage !== 'Completed').length
+  const averageProgress = learningItems.length
+    ? Math.round(
+        learningItems.reduce((total, item) => total + item.progressPercent, 0) /
+          learningItems.length,
+      )
+    : 0
 
   return (
     <div className="page-stack">
@@ -20,6 +27,21 @@ export function LearningPage() {
         }
       />
 
+      <section className="snapshot-grid snapshot-grid-learning">
+        <Panel className="snapshot-card snapshot-card-accent">
+          <p className="snapshot-value">{learningItems.length}</p>
+          <p className="snapshot-label">Tracks</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{activeItems}</p>
+          <p className="snapshot-label">Active</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{averageProgress}%</p>
+          <p className="snapshot-label">Average progress</p>
+        </Panel>
+      </section>
+
       <div className="learning-layout">
         <section className="learning-grid">
           {learningItems.map((item) => (
@@ -28,7 +50,7 @@ export function LearningPage() {
               className={`learning-card ${selectedItem?.id === item.id ? 'learning-card-active' : ''}`}
               onClick={() => setSelectedId(item.id)}
             >
-              <div className="section-row">
+              <div className="learning-card-head">
                 <Badge tone="info">{item.stage}</Badge>
                 <span>{item.progressPercent}%</span>
               </div>
@@ -36,15 +58,36 @@ export function LearningPage() {
               <p>{item.topic}</p>
               <ProgressBar value={item.progressPercent} />
               <p className="muted-copy">{item.nextStep}</p>
+              <div className="learning-card-footer">
+                <span>{item.resourceLink ? 'Resource linked' : 'No resource yet'}</span>
+                <span>{item.targetCompletionDate ?? 'No target date'}</span>
+              </div>
             </button>
           ))}
         </section>
 
         {selectedItem ? (
           <Panel className="learning-detail">
+            <div className="learning-detail-header">
+              <div>
+                <p className="eyebrow">Current item</p>
+                <h3>{selectedItem.title}</h3>
+              </div>
+              <Badge tone="info">{selectedItem.stage}</Badge>
+            </div>
+            <div className="learning-detail-metrics">
+              <div className="project-metric">
+                <span>Progress</span>
+                <strong>{selectedItem.progressPercent}%</strong>
+              </div>
+              <div className="project-metric">
+                <span>Target</span>
+                <strong>{selectedItem.targetCompletionDate ?? 'None'}</strong>
+              </div>
+            </div>
             <div>
               <p className="eyebrow">Current item</p>
-              <h3>{selectedItem.title}</h3>
+              <h3>Details</h3>
             </div>
             <label className="field">
               <span>Title</span>
@@ -100,6 +143,15 @@ export function LearningPage() {
                 value={selectedItem.nextStep}
                 onChange={(event) =>
                   updateLearningItem(selectedItem.id, { nextStep: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Resource link</span>
+              <input
+                value={selectedItem.resourceLink}
+                onChange={(event) =>
+                  updateLearningItem(selectedItem.id, { resourceLink: event.target.value })
                 }
               />
             </label>

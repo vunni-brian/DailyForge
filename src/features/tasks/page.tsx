@@ -22,6 +22,7 @@ export function TasksPage() {
   const [projectId, setProjectId] = useState('all')
   const selectedTaskId = searchParams.get('task')
   const selectedTask = tasks.find((task) => task.id === selectedTaskId)
+  const selectedTaskProject = projects.find((project) => project.id === selectedTask?.projectId)
 
   const filteredTasks = [...tasks]
     .filter((task) =>
@@ -30,6 +31,10 @@ export function TasksPage() {
     .filter((task) => (priority === 'All' ? true : task.priority === priority))
     .filter((task) => (projectId === 'all' ? true : task.projectId === projectId))
     .sort((left, right) => priorityRank(right) - priorityRank(left))
+  const doneCount = filteredTasks.filter((task) => task.status === 'Done').length
+  const todayCount = filteredTasks.filter((task) => task.status === 'Today').length
+  const blockedCount = filteredTasks.filter((task) => task.status === 'Blocked').length
+  const inProgressCount = filteredTasks.filter((task) => task.status === 'In Progress').length
 
   return (
     <div className="page-stack">
@@ -43,6 +48,29 @@ export function TasksPage() {
           </button>
         }
       />
+
+      <section className="snapshot-grid">
+        <Panel className="snapshot-card snapshot-card-accent">
+          <p className="snapshot-value">{filteredTasks.length}</p>
+          <p className="snapshot-label">Visible tasks</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{todayCount}</p>
+          <p className="snapshot-label">Today</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{inProgressCount}</p>
+          <p className="snapshot-label">In progress</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{blockedCount}</p>
+          <p className="snapshot-label">Blocked</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{doneCount}</p>
+          <p className="snapshot-label">Done</p>
+        </Panel>
+      </section>
 
       <Panel className="toolbar">
         <div className="toolbar-row">
@@ -86,6 +114,19 @@ export function TasksPage() {
             </button>
           ))}
         </div>
+
+        <div className="toolbar-status-row">
+          {boardStatuses.map((status) => {
+            const count = filteredTasks.filter((task) => task.status === status).length
+
+            return (
+              <div key={status} className="toolbar-status-pill">
+                <span>{status}</span>
+                <strong>{count}</strong>
+              </div>
+            )
+          })}
+        </div>
       </Panel>
 
       {view === 'kanban' ? (
@@ -94,11 +135,18 @@ export function TasksPage() {
             const statusTasks = filteredTasks.filter((task) => task.status === status)
             return (
               <Panel key={status} className="kanban-column">
-                <div className="section-row">
-                  <h3>{status}</h3>
-                  <Badge tone={status === 'Blocked' ? 'danger' : 'info'}>
-                    {statusTasks.length}
-                  </Badge>
+                <div className="kanban-column-header">
+                  <div className="kanban-column-title">
+                    <h3>{status}</h3>
+                    <p className="kanban-column-subcopy">
+                      {status === 'Blocked'
+                        ? 'Needs a decision'
+                        : status === 'Done'
+                          ? 'Recently closed'
+                          : 'Active work surface'}
+                    </p>
+                  </div>
+                  <Badge tone={status === 'Blocked' ? 'danger' : 'info'}>{statusTasks.length}</Badge>
                 </div>
                 <div className="kanban-stack">
                   {statusTasks.map((task) => (
@@ -108,6 +156,17 @@ export function TasksPage() {
                       onClick={() => setSearchParams({ task: task.id })}
                     >
                       <div className="task-card-head">
+                        <div className="task-card-title-row">
+                          <span
+                            className={cx(
+                              'task-priority-marker',
+                              task.priority === 'Critical' && 'task-priority-critical',
+                              task.priority === 'High' && 'task-priority-high',
+                              task.priority === 'Medium' && 'task-priority-medium',
+                            )}
+                          />
+                          <strong>{task.title}</strong>
+                        </div>
                         <Badge
                           tone={
                             task.priority === 'Critical'
@@ -119,16 +178,22 @@ export function TasksPage() {
                         >
                           {task.priority}
                         </Badge>
-                        <span className="status-dot" />
                       </div>
-                      <strong>{task.title}</strong>
-                      <p>{task.description}</p>
+                      <p className="task-card-body">
+                        {task.description || 'No extra notes on this task yet.'}
+                      </p>
                       <div className="task-card-meta">
-                        <span>{formatShortDate(task.dueDate)}</span>
+                        <span className={cx(isOverdue(task) && 'text-danger')}>
+                          {formatShortDate(task.dueDate)}
+                        </span>
                         <span>
                           {projects.find((project) => project.id === task.projectId)?.name ??
                             'No project'}
                         </span>
+                      </div>
+                      <div className="task-card-footer">
+                        <span>{task.status}</span>
+                        <span>Open details</span>
                       </div>
                     </button>
                   ))}
@@ -152,9 +217,9 @@ export function TasksPage() {
                 className={cx('task-list-row', selectedTaskId === task.id && 'selected')}
                 onClick={() => setSearchParams({ task: task.id })}
               >
-                <div>
+                <div className="task-list-primary">
                   <strong>{task.title}</strong>
-                  <p>{task.description}</p>
+                  <p>{task.description || 'No task description'}</p>
                 </div>
                 <Badge
                   tone={
@@ -167,10 +232,16 @@ export function TasksPage() {
                 >
                   {task.priority}
                 </Badge>
-                <span>{task.status}</span>
-                <span className={cx(isOverdue(task) && 'text-danger')}>
-                  {formatShortDate(task.dueDate)}
-                </span>
+                <div className="task-inline-meta">
+                  <span>{task.status}</span>
+                  <span>{projects.find((project) => project.id === task.projectId)?.name ?? 'No project'}</span>
+                </div>
+                <div className="task-inline-meta task-inline-meta-right">
+                  <span className={cx(isOverdue(task) && 'text-danger')}>
+                    {formatShortDate(task.dueDate)}
+                  </span>
+                  <span>Open</span>
+                </div>
               </button>
             ))}
           </div>
@@ -188,6 +259,27 @@ export function TasksPage() {
               <button className="ghost-button" onClick={() => setSearchParams({})}>
                 Close
               </button>
+            </div>
+
+            <div className="drawer-summary">
+              <Badge
+                tone={
+                  selectedTask.priority === 'Critical'
+                    ? 'danger'
+                    : selectedTask.priority === 'High'
+                      ? 'warning'
+                      : 'neutral'
+                }
+              >
+                {selectedTask.priority}
+              </Badge>
+              <Badge tone={selectedTask.status === 'Blocked' ? 'danger' : 'info'}>
+                {selectedTask.status}
+              </Badge>
+              <span>{selectedTaskProject?.name ?? 'No project'}</span>
+              <span className={cx(isOverdue(selectedTask) && 'text-danger')}>
+                {formatShortDate(selectedTask.dueDate)}
+              </span>
             </div>
 
             <label className="field">
@@ -277,7 +369,7 @@ export function TasksPage() {
               </label>
             </div>
 
-            <div className="button-row">
+            <div className="drawer-actions">
               {boardStatuses.map((status) => (
                 <button
                   key={status}
