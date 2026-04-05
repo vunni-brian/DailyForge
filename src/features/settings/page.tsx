@@ -32,7 +32,7 @@ export function SettingsPage() {
 
     try {
       const contents = await file.text()
-      importWorkspace(contents)
+      await importWorkspace(contents)
       setMessage('Workspace imported.')
     } catch (error) {
       setMessage(
@@ -51,9 +51,26 @@ export function SettingsPage() {
         description="Theme, notifications, timer defaults, backup/export, and keyboard-friendly defaults all live here."
       />
 
+      <section className="snapshot-grid snapshot-grid-settings">
+        <Panel className="snapshot-card snapshot-card-accent">
+          <p className="snapshot-value">{settings.theme === 'dark' ? 'Dark' : 'Light'}</p>
+          <p className="snapshot-label">Theme</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{settings.notifications ? 'On' : 'Off'}</p>
+          <p className="snapshot-label">Notifications</p>
+        </Panel>
+        <Panel className="snapshot-card">
+          <p className="snapshot-value">{settings.timerDefault}</p>
+          <p className="snapshot-label">Timer default</p>
+        </Panel>
+      </section>
+
       <div className="settings-grid">
         <Panel className="subpanel">
           <p className="eyebrow">Theme</p>
+          <h3>Color mode</h3>
+          <p className="muted-copy">Switch the workspace between the dark and light surface systems.</p>
           <div className="segmented-control">
             <button
               className={settings.theme === 'dark' ? 'active' : ''}
@@ -72,6 +89,8 @@ export function SettingsPage() {
 
         <Panel className="subpanel">
           <p className="eyebrow">Notifications</p>
+          <h3>Desktop alerts</h3>
+          <p className="muted-copy">Use desktop notifications for timer completion and lightweight reminders.</p>
           <button
             className="ghost-button"
             onClick={() => updateSettings({ notifications: !settings.notifications })}
@@ -82,6 +101,8 @@ export function SettingsPage() {
 
         <Panel className="subpanel">
           <p className="eyebrow">Timer defaults</p>
+          <h3>Default focus mode</h3>
+          <p className="muted-copy">Pick the mode that should be preselected when the app opens.</p>
           <select
             value={settings.timerDefault}
             onChange={(event) =>
@@ -98,6 +119,8 @@ export function SettingsPage() {
 
         <Panel className="subpanel">
           <p className="eyebrow">Backup / Export</p>
+          <h3>Workspace backup</h3>
+          <p className="muted-copy">Export the current workspace, import a backup, or reset back to the starter data.</p>
           <div className="stack-list">
             <button className="primary-button" onClick={handleExport}>
               Export workspace JSON
@@ -106,7 +129,13 @@ export function SettingsPage() {
               Import backup
               <input type="file" accept=".json" onChange={handleImport} />
             </label>
-            <button className="ghost-button" onClick={resetWorkspace}>
+            <button
+              className="ghost-button"
+              onClick={async () => {
+                await resetWorkspace()
+                setMessage('Workspace reset to sample data.')
+              }}
+            >
               Reset to sample workspace
             </button>
             {message ? <p className="muted-copy">{message}</p> : null}
@@ -115,6 +144,8 @@ export function SettingsPage() {
 
         <Panel className="subpanel">
           <p className="eyebrow">Keyboard shortcuts</p>
+          <h3>Fast actions</h3>
+          <p className="muted-copy">Core shortcuts stay visible here so the desktop app remains keyboard-first.</p>
           <ul className="mini-list">
             <li>Ctrl + K for search</li>
             <li>Ctrl + N for quick task</li>

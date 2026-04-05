@@ -3,8 +3,10 @@ import {
   type PropsWithChildren,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react'
+import { createSeedWorkspace } from '../data/seed'
 import { focusService } from '../services/focus.service'
 import { learningService } from '../services/learning.service'
 import { noteService } from '../services/note.service'
@@ -12,7 +14,10 @@ import { projectService } from '../services/project.service'
 import { reviewService } from '../services/review.service'
 import { settingsService } from '../services/settings.service'
 import { taskService } from '../services/task.service'
-import { browserWorkspaceRepository } from '../repositories/workspace.repository'
+import {
+  getWorkspacePersistenceFingerprint,
+  workspaceRepository,
+} from '../repositories/workspace.repository'
 import type {
   ComposerState,
   CreateNoteInput,
@@ -59,15 +64,17 @@ interface AppContextValue {
   pauseTimer: () => void
   resetTimer: () => void
   exportWorkspace: () => string
-  importWorkspace: (serialized: string) => void
-  resetWorkspace: () => void
+  importWorkspace: (serialized: string) => Promise<void>
+  resetWorkspace: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: PropsWithChildren) {
-  const [workspace, setWorkspace] = useState(() => browserWorkspaceRepository.load())
+  const [workspace, setWorkspace] = useState(createSeedWorkspace)
   const [composer, setComposer] = useState<ComposerState>({ mode: null })
+  const [hydrated, setHydrated] = useState(false)
+  const lastSavedFingerprint = useRef('')
 
   const {
     tasks,
@@ -81,12 +88,53 @@ export function AppProvider({ children }: PropsWithChildren) {
   } = workspace
 
   useEffect(() => {
+    let active = true
+
+    void workspaceRepository
+      .load()
+      .then((loadedWorkspace) => {
+        if (!active) {
+          return
+        }
+
+        setWorkspace(loadedWorkspace)
+        lastSavedFingerprint.current =
+          getWorkspacePersistenceFingerprint(loadedWorkspace)
+        setHydrated(true)
+      })
+      .catch(() => {
+        if (!active) {
+          return
+        }
+
+        lastSavedFingerprint.current =
+          getWorkspacePersistenceFingerprint(createSeedWorkspace())
+        setHydrated(true)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     document.documentElement.dataset.theme = settings.theme
   }, [settings.theme])
 
   useEffect(() => {
-    browserWorkspaceRepository.save(workspace)
-  }, [workspace])
+    if (!hydrated) {
+      return
+    }
+
+    const nextFingerprint = getWorkspacePersistenceFingerprint(workspace)
+
+    if (nextFingerprint === lastSavedFingerprint.current) {
+      return
+    }
+
+    lastSavedFingerprint.current = nextFingerprint
+    void workspaceRepository.save(workspace)
+  }, [hydrated, workspace])
 
   useEffect(() => {
     if (!timer.isRunning) {
@@ -176,15 +224,21 @@ export function AppProvider({ children }: PropsWithChildren) {
     setWorkspace((current) => focusService.resetTimer(current))
   }
 
-  const exportWorkspace = () => browserWorkspaceRepository.export(workspace)
+  const exportWorkspace = () => workspaceRepository.export(workspace)
 
-  const importWorkspace = (serialized: string) => {
-    setWorkspace(browserWorkspaceRepository.import(serialized))
+  const importWorkspace = async (serialized: string) => {
+    const nextWorkspace = await workspaceRepository.import(serialized)
+    lastSavedFingerprint.current =
+      getWorkspacePersistenceFingerprint(nextWorkspace)
+    setWorkspace(nextWorkspace)
     setComposer({ mode: null })
   }
 
-  const resetWorkspace = () => {
-    setWorkspace(browserWorkspaceRepository.reset())
+  const resetWorkspace = async () => {
+    const nextWorkspace = await workspaceRepository.reset()
+    lastSavedFingerprint.current =
+      getWorkspacePersistenceFingerprint(nextWorkspace)
+    setWorkspace(nextWorkspace)
     setComposer({ mode: null })
   }
 

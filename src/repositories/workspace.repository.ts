@@ -1,5 +1,15 @@
 import { createDefaultTimerState, createSeedWorkspace } from '../data/seed'
-import type { WorkspaceState } from '../types'
+import { getDatabase, isDesktopRuntime } from '../db/client'
+import { nowIso } from '../lib/core'
+import type { TimerState, WorkspaceState } from '../types'
+import { tauriFocusRepository } from './focus.repository'
+import { tauriLearningRepository } from './learning.repository'
+import { tauriNoteRepository } from './note.repository'
+import { tauriProjectRepository } from './project.repository'
+import { tauriReviewRepository } from './review.repository'
+import { tauriSettingsRepository } from './settings.repository'
+import { runInTransaction } from './sqlite-helpers'
+import { tauriTaskRepository } from './task.repository'
 
 const STORAGE_KEY = 'dailyforge.workspace'
 const STORAGE_VERSION = 1
@@ -41,60 +51,176 @@ function normalizeWorkspace(value: unknown): WorkspaceState {
   }
 }
 
+function rehydrateTimer(workspace: WorkspaceState): WorkspaceState {
+  if (!workspace.timer.isRunning || !workspace.timer.endsAt) {
+    return workspace
+  }
+
+  return {
+    ...workspace,
+    timer: {
+      ...workspace.timer,
+      remainingSeconds: Math.max(
+        0,
+        Math.ceil((new Date(workspace.timer.endsAt).getTime() - Date.now()) / 1000),
+      ),
+    },
+  }
+}
+
 function parseWorkspace(raw: string, strict: boolean) {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const data =
       isObject(parsed) && isObject(parsed.data) ? parsed.data : parsed
 
-    return normalizeWorkspace(data)
-  } catch (error) {
+  return rehydrateTimer(normalizeWorkspace(data))
+  } catch {
     if (strict) {
       throw new Error('The selected file is not a valid DailyForge backup.')
     }
 
-    return createSeedWorkspace()
+    return rehydrateTimer(createSeedWorkspace())
   }
 }
 
-export const browserWorkspaceRepository = {
-  load(): WorkspaceState {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
+function isWorkspaceEmpty(workspace: WorkspaceState) {
+  return (
+    workspace.projects.length === 0 &&
+    workspace.tasks.length === 0 &&
+    workspace.notes.length === 0 &&
+    workspace.learningItems.length === 0 &&
+    workspace.reviews.length === 0 &&
+    workspace.focusSessions.length === 0
+  )
+}
 
-    if (!stored) {
-      const seeded = createSeedWorkspace()
-      this.save(seeded)
-      return seeded
-    }
+function normalizeTimerForPersistence(timer: TimerState): TimerState {
+  if (!timer.isRunning) {
+    return timer
+  }
 
-    return parseWorkspace(stored, false)
+  return {
+    ...timer,
+    remainingSeconds: 0,
+  }
+}
+
+function normalizeWorkspaceForPersistence(workspace: WorkspaceState): WorkspaceState {
+  return {
+    ...workspace,
+    timer: normalizeTimerForPersistence(workspace.timer),
+  }
+}
+
+async function loadTauriWorkspace() {
+  const db = await getDatabase()
+  const [projects, tasks, notes, learningItems, reviews, focusSessions, settings, timer] =
+    await Promise.all([
+      tauriProjectRepository.listProjects(db),
+      tauriTaskRepository.listTasks(db),
+      tauriNoteRepository.listNotes(db),
+      tauriLearningRepository.listLearningItems(db),
+      tauriReviewRepository.listReviews(db),
+      tauriFocusRepository.listFocusSessions(db),
+      tauriSettingsRepository.loadSettings(db),
+      tauriFocusRepository.loadTimerState(db),
+    ])
+
+  const workspace: WorkspaceState = {
+    projects,
+    tasks,
+    notes,
+    learningItems,
+    reviews,
+    focusSessions,
+    settings,
+    timer,
+  }
+
+  if (!isWorkspaceEmpty(workspace)) {
+  return rehydrateTimer(workspace)
+  }
+
+  const seeded = createSeedWorkspace()
+  await saveTauriWorkspace(seeded)
+  return seeded
+}
+
+async function saveTauriWorkspace(workspace: WorkspaceState) {
+  const db = await getDatabase()
+  const persisted = normalizeWorkspaceForPersistence(workspace)
+
+  await runInTransaction(db, async () => {
+    await tauriProjectRepository.replaceProjects(db, persisted.projects)
+    await tauriTaskRepository.replaceTasks(db, persisted.tasks)
+    await tauriNoteRepository.replaceNotes(db, persisted.notes)
+    await tauriLearningRepository.replaceLearningItems(db, persisted.learningItems)
+    await tauriReviewRepository.replaceReviews(db, persisted.reviews)
+    await tauriFocusRepository.replaceFocusSessions(db, persisted.focusSessions)
+    await tauriSettingsRepository.saveSettings(db, persisted.settings)
+    await tauriFocusRepository.saveTimerState(db, persisted.timer)
+  })
+}
+
+function loadBrowserWorkspace() {
+  const stored = window.localStorage.getItem(STORAGE_KEY)
+
+  if (!stored) {
+    return createSeedWorkspace()
+  }
+
+  return rehydrateTimer(parseWorkspace(stored, false))
+}
+
+function saveBrowserWorkspace(workspace: WorkspaceState) {
+  const persisted = normalizeWorkspaceForPersistence(workspace)
+  window.localStorage.setItem(STORAGE_KEY, serializeWorkspace(persisted))
+}
+
+export function serializeWorkspace(workspace: WorkspaceState) {
+  return JSON.stringify(
+    {
+      version: STORAGE_VERSION,
+      exportedAt: nowIso(),
+      data: workspace,
+    },
+    null,
+    2,
+  )
+}
+
+export function getWorkspacePersistenceFingerprint(workspace: WorkspaceState) {
+  return JSON.stringify(normalizeWorkspaceForPersistence(workspace))
+}
+
+export const workspaceRepository = {
+  async load() {
+    return isDesktopRuntime() ? loadTauriWorkspace() : loadBrowserWorkspace()
   },
 
-  save(workspace: WorkspaceState) {
-    window.localStorage.setItem(STORAGE_KEY, this.export(workspace))
+  async save(workspace: WorkspaceState) {
+    if (isDesktopRuntime()) {
+      await saveTauriWorkspace(workspace)
+      return
+    }
+
+    saveBrowserWorkspace(workspace)
   },
 
   export(workspace: WorkspaceState) {
-    return JSON.stringify(
-      {
-        version: STORAGE_VERSION,
-        exportedAt: new Date().toISOString(),
-        data: workspace,
-      },
-      null,
-      2,
-    )
+    return serializeWorkspace(workspace)
   },
 
-  import(serialized: string) {
+  async import(serialized: string) {
     const workspace = parseWorkspace(serialized, true)
-    this.save(workspace)
+    await this.save(workspace)
     return workspace
   },
 
-  reset() {
+  async reset() {
     const workspace = createSeedWorkspace()
-    this.save(workspace)
+    await this.save(workspace)
     return workspace
   },
 }
