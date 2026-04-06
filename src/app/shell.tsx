@@ -1,22 +1,30 @@
 import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  NavLink,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom'
+  BookIcon,
+  CheckSquareIcon,
+  FlameIcon,
+  FolderIcon,
+  GraduationCapIcon,
+  GridIcon,
+  NoteIcon,
+  SearchIcon,
+  SettingsIcon,
+  TimerIcon,
+} from '../components/icons'
 import { useAppContext } from '../context/app-context'
-import { cx, formatLongDate } from '../lib/helpers'
+import { cx } from '../lib/helpers'
+import { noteTypes, taskStatuses, type NoteType } from '../types'
 
 const navItems = [
-  { label: 'Dashboard', path: '/dashboard', shortcut: '1', glyph: 'DB' },
-  { label: 'Tasks', path: '/tasks', shortcut: '2', glyph: 'TS' },
-  { label: 'Projects', path: '/projects', shortcut: '3', glyph: 'PR' },
-  { label: 'Notes', path: '/notes', shortcut: '4', glyph: 'NT' },
-  { label: 'Learning', path: '/learning', shortcut: '5', glyph: 'LN' },
-  { label: 'Focus', path: '/focus', shortcut: '6', glyph: 'FC' },
-  { label: 'Reviews', path: '/reviews', shortcut: '7', glyph: 'RV' },
-  { label: 'Settings', path: '/settings', shortcut: ',', glyph: 'ST' },
+  { label: 'Dashboard', path: '/dashboard', shortcut: '1', icon: GridIcon },
+  { label: 'Tasks', path: '/tasks', shortcut: '2', icon: CheckSquareIcon },
+  { label: 'Projects', path: '/projects', shortcut: '3', icon: FolderIcon },
+  { label: 'Notes', path: '/notes', shortcut: '4', icon: NoteIcon },
+  { label: 'Focus', path: '/focus', shortcut: '5', icon: TimerIcon },
+  { label: 'Learning', path: '/learning', shortcut: '6', icon: GraduationCapIcon },
+  { label: 'Reviews', path: '/reviews', shortcut: '7', icon: BookIcon },
+  { label: 'Settings', path: '/settings', shortcut: ',', icon: SettingsIcon },
 ] as const
 
 export function AppShell() {
@@ -28,16 +36,12 @@ export function AppShell() {
     openComposer,
     notes,
     projects,
-    settings,
     tasks,
     addNote,
     addTask,
-    updateSettings,
   } = useAppContext()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const activeItem =
-    navItems.find((item) => location.pathname.startsWith(item.path)) ?? navItems[0]
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -82,10 +86,7 @@ export function AppShell() {
       })),
     ...projects
       .filter((project) =>
-        [project.name, project.description]
-          .join(' ')
-          .toLowerCase()
-          .includes(query.toLowerCase()),
+        [project.name, project.description].join(' ').toLowerCase().includes(query.toLowerCase()),
       )
       .map((project) => ({
         id: project.id,
@@ -111,78 +112,36 @@ export function AppShell() {
     <>
       <div className="app-shell">
         <aside className="sidebar">
-          <div className="brand-block">
-            <div className="brand-mark">DF</div>
-            <div className="brand-copy">
-              <p className="brand-kicker">Desktop planner</p>
-              <h2>
-                Daily<span className="text-gradient-forge">Forge</span>
-              </h2>
-            </div>
-          </div>
+          <button className="brand-block" onClick={() => navigate('/dashboard')}>
+            <span className="brand-mark">
+              <FlameIcon className="brand-mark-icon" />
+            </span>
+            <h2 className="brand-title">
+              Daily<span>Forge</span>
+            </h2>
+          </button>
 
           <nav className="sidebar-nav">
-            {navItems.map((item) => (
+            {navItems.map(({ icon: Icon, label, path }) => (
               <NavLink
-                key={item.path}
-                to={item.path}
+                key={path}
+                to={path}
                 className={({ isActive }) =>
                   cx('sidebar-link', isActive && 'sidebar-link-active')
                 }
               >
                 <span className="sidebar-link-copy">
-                  <span className="sidebar-link-icon">{item.glyph}</span>
-                  <span>{item.label}</span>
+                  <Icon className="sidebar-nav-icon" />
+                  <span>{label}</span>
                 </span>
-                <kbd>{item.shortcut}</kbd>
               </NavLink>
             ))}
           </nav>
 
-          <div className="sidebar-footer">
-            <p className="sidebar-footer-label">Focused planning for desktop.</p>
-            <span>v0.1 desktop preview</span>
-          </div>
+          <div className="sidebar-footer">DailyForge v1.0</div>
         </aside>
 
         <div className="shell-main">
-          <header className="topbar">
-            <div className="topbar-copy">
-              <p className="eyebrow">Workspace</p>
-              <h2>{activeItem.label}</h2>
-            </div>
-
-            <div className="topbar-cluster">
-              <div className="topbar-status">
-                <span className="topbar-status-dot" />
-                <span>{formatLongDate(new Date())}</span>
-              </div>
-
-              <div className="topbar-actions">
-                <button className="ghost-button search-trigger" onClick={() => setPaletteOpen(true)}>
-                  Search workspace
-                  <kbd>Ctrl + K</kbd>
-                </button>
-                <button className="primary-button" onClick={() => openComposer('task')}>
-                  + Quick Add
-                </button>
-                <button
-                  className="ghost-button"
-                  onClick={() =>
-                    updateSettings({
-                      theme: settings.theme === 'dark' ? 'light' : 'dark',
-                    })
-                  }
-                >
-                  {settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                </button>
-                <button className="ghost-button" onClick={() => navigate('/settings')}>
-                  Settings
-                </button>
-              </div>
-            </div>
-          </header>
-
           <main className="shell-content">
             <Outlet />
           </main>
@@ -192,20 +151,31 @@ export function AppShell() {
       {paletteOpen ? (
         <div className="overlay" onClick={() => setPaletteOpen(false)}>
           <div className="palette" onClick={(event) => event.stopPropagation()}>
-            <input
-              autoFocus
-              className="palette-input"
-              placeholder="Search tasks, projects, notes..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+            <div className="modal-header">
+              <div>
+                <h3>Search Workspace</h3>
+                <p className="modal-subcopy">Jump to any task, project, or note.</p>
+              </div>
+              <button className="icon-button" onClick={() => setPaletteOpen(false)}>
+                ×
+              </button>
+            </div>
+            <label className="field">
+              <span>Search</span>
+              <div className="input-with-icon">
+                <SearchIcon className="field-icon" />
+                <input
+                  autoFocus
+                  className="palette-input"
+                  placeholder="Search tasks, projects, notes..."
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
+            </label>
             <div className="palette-results">
-              {!query ? (
-                <p className="muted-copy">Start typing to search across your workspace.</p>
-              ) : null}
-              {query && !results.length ? (
-                <p className="muted-copy">No results matched that search.</p>
-              ) : null}
+              {!query ? <p className="muted-copy">Start typing to search your workspace.</p> : null}
+              {query && !results.length ? <p className="muted-copy">No results found.</p> : null}
               {results.map((result) => (
                 <button
                   key={`${result.type}-${result.id}`}
@@ -255,11 +225,12 @@ function ComposerModal({
     description?: string
     dueDate?: string | null
     projectId?: string | null
+    status?: (typeof taskStatuses)[number]
   }) => void
   onCreateNote: (payload: {
     title: string
     content?: string
-    projectId?: string | null
+    type?: NoteType
   }) => void
 }) {
   const { projects } = useAppContext()
@@ -267,92 +238,125 @@ function ComposerModal({
   const [description, setDescription] = useState('')
   const [projectId, setProjectId] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [status, setStatus] = useState<(typeof taskStatuses)[number]>('Backlog')
+  const [noteType, setNoteType] = useState<NoteType>('Quick Note')
 
   useEffect(() => {
     setTitle('')
     setDescription('')
     setProjectId('')
     setDueDate('')
+    setStatus('Backlog')
+    setNoteType('Quick Note')
   }, [mode])
 
   return (
     <div className="overlay" onClick={onClose}>
       <div className="composer" onClick={(event) => event.stopPropagation()}>
-        <div className="composer-header">
+        <div className="modal-header">
           <div>
-            <p className="eyebrow">Quick capture</p>
-            <h3>{mode === 'task' ? 'Create task' : 'Create note'}</h3>
+            <h3>{mode === 'task' ? 'Create Task' : 'Create Note'}</h3>
           </div>
-          <button className="ghost-button" onClick={onClose}>
-            Close
+          <button className="icon-button" onClick={onClose}>
+            ×
           </button>
         </div>
 
         <label className="field">
           <span>Title</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input
+            autoFocus
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={mode === 'task' ? 'What needs to be done?' : 'Note title'}
+          />
         </label>
+
+        {mode === 'note' ? (
+          <label className="field">
+            <span>Type</span>
+            <select value={noteType} onChange={(event) => setNoteType(event.target.value as NoteType)}>
+              {noteTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="field">
           <span>{mode === 'task' ? 'Details' : 'Content'}</span>
           <textarea
-            rows={mode === 'task' ? 4 : 8}
+            rows={mode === 'task' ? 4 : 7}
             value={description}
+            placeholder={mode === 'task' ? 'Add task notes...' : 'Write your note...'}
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
 
-        <label className="field">
-          <span>Project</span>
-          <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-            <option value="">No project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
         {mode === 'task' ? (
-          <label className="field">
-            <span>Due date</span>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
-            />
-          </label>
+          <>
+            <div className="field-grid">
+              <label className="field">
+                <span>Status</span>
+                <select value={status} onChange={(event) => setStatus(event.target.value as (typeof taskStatuses)[number])}>
+                  {taskStatuses.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {entry}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>Project</span>
+                <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                  <option value="">No project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="field">
+              <span>Due date</span>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </label>
+          </>
         ) : null}
 
-        <div className="composer-actions">
-          <button className="ghost-button" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="primary-button"
-            disabled={!title.trim()}
-            onClick={() => {
-              if (mode === 'task') {
-                onCreateTask({
-                  title,
-                  description,
-                  dueDate: dueDate || null,
-                  projectId: projectId || null,
-                })
-                return
-              }
-
-              onCreateNote({
+        <button
+          className="primary-button modal-submit"
+          disabled={!title.trim()}
+          onClick={() => {
+            if (mode === 'task') {
+              onCreateTask({
                 title,
-                content: description,
+                description,
+                dueDate: dueDate || null,
                 projectId: projectId || null,
+                status,
               })
-            }}
-          >
-            Create {mode}
-          </button>
-        </div>
+              return
+            }
+
+            onCreateNote({
+              title,
+              content: description,
+              type: noteType,
+            })
+          }}
+        >
+          {mode === 'task' ? 'Create Task' : 'Create Note'}
+        </button>
       </div>
     </div>
   )

@@ -168,7 +168,23 @@ export interface CreateTaskInput {
 export interface CreateNoteInput {
   title: string
   content?: string
+  type?: NoteType
   projectId?: string | null
+}
+
+export interface CreateProjectInput {
+  name: string
+  description?: string
+  status?: ProjectStatus
+  color?: string
+  targetDate?: string | null
+}
+
+export interface CreateLearningItemInput {
+  title: string
+  topic?: string
+  nextStep?: string
+  resourceLink?: string
 }
 
 export interface ReviewDraft {

@@ -8,7 +8,7 @@ export const noteService = {
       id: createId('note'),
       title: input.title,
       content: input.content ?? '',
-      type: 'Quick Note',
+      type: input.type ?? 'Quick Note',
       projectId: input.projectId ?? null,
       tags: [],
       pinned: false,
