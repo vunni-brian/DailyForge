@@ -173,6 +173,16 @@ function loadBrowserWorkspace() {
   return rehydrateTimer(parseWorkspace(stored, false))
 }
 
+function loadBrowserWorkspaceSnapshot() {
+  const stored = window.localStorage.getItem(STORAGE_KEY)
+
+  if (!stored) {
+    return null
+  }
+
+  return rehydrateTimer(parseWorkspace(stored, false))
+}
+
 function saveBrowserWorkspace(workspace: WorkspaceState) {
   const persisted = normalizeWorkspaceForPersistence(workspace)
   window.localStorage.setItem(STORAGE_KEY, serializeWorkspace(persisted))
@@ -196,11 +206,28 @@ export function getWorkspacePersistenceFingerprint(workspace: WorkspaceState) {
 
 export const workspaceRepository = {
   async load() {
-    return isDesktopRuntime() ? loadTauriWorkspace() : loadBrowserWorkspace()
+    if (!isDesktopRuntime()) {
+      return loadBrowserWorkspace()
+    }
+
+    const browserSnapshot = loadBrowserWorkspaceSnapshot()
+
+    if (browserSnapshot) {
+      void saveTauriWorkspace(browserSnapshot).catch((error) => {
+        console.error('Failed to sync browser backup to SQLite.', error)
+      })
+
+      return browserSnapshot
+    }
+
+    return loadTauriWorkspace()
   },
 
   async save(workspace: WorkspaceState) {
     if (isDesktopRuntime()) {
+      // Persist a synchronous backup first so abrupt app exits do not lose edits.
+      saveBrowserWorkspace(workspace)
+
       await saveTauriWorkspace(workspace)
       return
     }
