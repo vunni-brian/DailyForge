@@ -1,6 +1,4 @@
 mod learning;
-mod learning_ai;
-mod learning_local;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -38,14 +36,15 @@ pub fn run() {
             learning::learning_add_source,
             learning::learning_attach_file,
             learning::learning_attach_file_from_path,
+            learning::learning_import_folder,
             learning::learning_delete_source,
-            learning_local::learning_generate_summary,
-            learning_local::learning_generate_flashcards,
+            learning::learning_generate_summary,
+            learning::learning_generate_flashcards,
             learning::learning_review_flashcard,
-            learning_local::learning_generate_quiz,
+            learning::learning_generate_quiz,
             learning::learning_submit_quiz,
             learning::learning_create_tutor_thread,
-            learning_local::learning_send_tutor_message,
+            learning::learning_send_tutor_message,
             learning::learning_export_session_bundle,
             learning::learning_export_flashcards_csv,
             learning::learning_import_session_bundle,
