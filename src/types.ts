@@ -155,6 +155,8 @@ export interface WorkspaceState {
   timer: TimerState
 }
 
+export type WorkspaceCoreState = Omit<WorkspaceState, 'tasks'>
+
 export interface CreateTaskInput {
   title: string
   description?: string

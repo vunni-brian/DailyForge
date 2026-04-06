@@ -13,6 +13,10 @@ import {
   TimerIcon,
 } from '../components/icons'
 import { useAppContext } from '../context/app-context'
+import { isDesktopRuntime } from '../db/client'
+import { learningApi } from '../features/learning/api'
+import { useTasks } from '../features/tasks/context'
+import type { LearningSessionCard } from '../features/learning/types'
 import { cx } from '../lib/helpers'
 import { noteTypes, taskStatuses, type NoteType } from '../types'
 
@@ -36,12 +40,12 @@ export function AppShell() {
     openComposer,
     notes,
     projects,
-    tasks,
     addNote,
-    addTask,
   } = useAppContext()
+  const { addTask, tasks } = useTasks()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [learningSessions, setLearningSessions] = useState<LearningSessionCard[]>([])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -72,10 +76,106 @@ export function AppShell() {
     setQuery('')
   }, [location.pathname, location.search])
 
+  useEffect(() => {
+    if (!isDesktopRuntime()) {
+      setLearningSessions([])
+      return
+    }
+
+    let active = true
+
+    void learningApi
+      .listSessions()
+      .then((sessions) => {
+        if (active) {
+          setLearningSessions(sessions)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setLearningSessions([])
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [location.pathname])
+
+  const normalizedQuery = query.toLowerCase()
+
+  const learningQuickActions = [
+    {
+      id: 'learning-action-create',
+      type: 'Action',
+      title: 'Create Learning Session',
+      subtitle: 'Open the new learning session form',
+      path: '/learning?action=create',
+    },
+    {
+      id: 'learning-action-open',
+      type: 'Action',
+      title: 'Open Learning',
+      subtitle: 'Go to the Learning workspace',
+      path: '/learning',
+    },
+  ].filter((action) =>
+    [action.title, action.subtitle].join(' ').toLowerCase().includes(normalizedQuery),
+  )
+
+  const learningSessionResults = learningSessions
+    .filter((session) =>
+      [session.title, session.subject, session.description]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+    .map((session) => ({
+      id: session.id,
+      type: 'Learning',
+      title: session.title,
+      subtitle:
+        session.subject ||
+        `${session.completionPercent}% complete • ${session.sourceCount} sources`,
+      path: `/learning/${session.id}`,
+    }))
+
+  const learningActionResults = learningSessions
+    .flatMap((session) => [
+      {
+        id: `learning-summary-${session.id}`,
+        type: 'Learning Action',
+        title: `Generate Summary: ${session.title}`,
+        subtitle: session.subject || 'Open the summary tab and run generation',
+        path: `/learning/${session.id}?tab=Summary&action=generate-summary`,
+      },
+      {
+        id: `learning-flashcards-${session.id}`,
+        type: 'Learning Action',
+        title: `Open Flashcards: ${session.title}`,
+        subtitle:
+          session.dueFlashcards > 0
+            ? `${session.dueFlashcards} flashcards due`
+            : 'Review or generate flashcards',
+        path: `/learning/${session.id}?tab=Flashcards`,
+      },
+      {
+        id: `learning-tutor-${session.id}`,
+        type: 'Learning Action',
+        title: `Resume Tutor: ${session.title}`,
+        subtitle: session.subject || 'Open the tutor tab for this session',
+        path: `/learning/${session.id}?tab=Tutor`,
+      },
+    ])
+    .filter((action) =>
+      [action.title, action.subtitle].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+
   const results = [
+    ...learningQuickActions,
     ...tasks
       .filter((task) =>
-        [task.title, task.description].join(' ').toLowerCase().includes(query.toLowerCase()),
+        [task.title, task.description].join(' ').toLowerCase().includes(normalizedQuery),
       )
       .map((task) => ({
         id: task.id,
@@ -86,7 +186,7 @@ export function AppShell() {
       })),
     ...projects
       .filter((project) =>
-        [project.name, project.description].join(' ').toLowerCase().includes(query.toLowerCase()),
+        [project.name, project.description].join(' ').toLowerCase().includes(normalizedQuery),
       )
       .map((project) => ({
         id: project.id,
@@ -97,7 +197,7 @@ export function AppShell() {
       })),
     ...notes
       .filter((note) =>
-        [note.title, note.content].join(' ').toLowerCase().includes(query.toLowerCase()),
+        [note.title, note.content].join(' ').toLowerCase().includes(normalizedQuery),
       )
       .map((note) => ({
         id: note.id,
@@ -106,6 +206,8 @@ export function AppShell() {
         subtitle: note.type,
         path: `/notes?note=${note.id}`,
       })),
+    ...learningSessionResults,
+    ...learningActionResults,
   ].slice(0, 10)
 
   return (
@@ -138,7 +240,7 @@ export function AppShell() {
             ))}
           </nav>
 
-          <div className="sidebar-footer">DailyForge v1.0</div>
+          <div className="sidebar-footer">DailyForge v0.1.0</div>
         </aside>
 
         <div className="shell-main">
@@ -154,7 +256,9 @@ export function AppShell() {
             <div className="modal-header">
               <div>
                 <h3>Search Workspace</h3>
-                <p className="modal-subcopy">Jump to any task, project, or note.</p>
+                <p className="modal-subcopy">
+                  Jump to tasks, projects, notes, and Learning sessions.
+                </p>
               </div>
               <button className="icon-button" onClick={() => setPaletteOpen(false)}>
                 ×
@@ -167,7 +271,7 @@ export function AppShell() {
                 <input
                   autoFocus
                   className="palette-input"
-                  placeholder="Search tasks, projects, notes..."
+                  placeholder="Search tasks, projects, notes, learning..."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />

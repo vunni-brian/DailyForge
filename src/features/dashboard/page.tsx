@@ -9,10 +9,12 @@ import {
 } from '../../components/icons'
 import { PageIntro, Panel, ProgressBar } from '../../components/ui'
 import { useAppContext } from '../../context/app-context'
+import { useTasks } from '../tasks/context'
 import { formatLongDate, formatMinutes, getProjectProgress, getTodayFocusMinutes } from '../../lib/helpers'
 
 export function DashboardPage() {
-  const { focusSessions, projects, tasks } = useAppContext()
+  const { focusSessions, projects } = useAppContext()
+  const { tasks } = useTasks()
   const now = new Date()
   const todayTasks = tasks.filter((task) => task.status === 'Today' || task.status === 'In Progress')
   const completedToday = tasks.filter((task) => task.completedAt?.startsWith(now.toISOString().slice(0, 10))).length

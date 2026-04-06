@@ -30,3 +30,5 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+pdf-extract = "0.10.0"
+zip = "8.5.0"

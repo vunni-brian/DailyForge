@@ -7,10 +7,12 @@ use serde_json::{json, Value};
 use std::{
     env,
     fs,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
 };
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
+use zip::ZipArchive;
 
 const DB_FILENAME: &str = "dailyforge.db";
 const OPENAI_CHAT_COMPLETIONS_URL: &str = "https://api.openai.com/v1/chat/completions";
@@ -279,6 +281,19 @@ pub struct AttachFilePathInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportFolderInput {
+    pub session_id: String,
+    pub folder_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionFromFileInput {
+    pub file_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GenerateQuizInput {
     pub session_id: String,
     pub question_count: Option<i64>,
@@ -377,6 +392,46 @@ pub fn learning_create_session(
     .map_err(|error| error.to_string())?;
 
     fetch_session_card(&conn, &id)
+}
+
+#[tauri::command]
+pub fn learning_create_session_from_file(
+    app: AppHandle,
+    input: CreateSessionFromFileInput,
+) -> Result<LearningSessionCard, String> {
+    let source_path = PathBuf::from(&input.file_path);
+    if !source_path.exists() || !source_path.is_file() {
+        return Err("The selected file could not be found.".into());
+    }
+
+    let file_name = source_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| "The selected file name is invalid.".to_string())?;
+    let title = display_title_from_file_name(&file_name);
+    let bytes = fs::read(&source_path).map_err(|error| error.to_string())?;
+    let now = now_iso();
+    let conn = open_connection(&app)?;
+    let session_id = learning_id("session");
+
+    conn.execute(
+        "INSERT INTO learning_sessions
+         (id, title, subject, description, goals, status, completion_percent, confidence_score, total_study_minutes, created_at, updated_at, last_studied_at)
+         VALUES (?1, ?2, '', ?3, '', 'active', 0, 0, 0, ?4, ?4, NULL)",
+        params![
+            session_id,
+            title,
+            format!("Created from {}", file_name),
+            now,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+
+    store_file_source(&conn, &app, &session_id, &file_name, None, bytes)?;
+    touch_session(&conn, &session_id)?;
+    recalculate_session_metrics(&conn, &session_id)?;
+    fetch_session_card(&conn, &session_id)
 }
 
 #[tauri::command]
@@ -564,6 +619,29 @@ pub fn learning_attach_file_from_path(
     let bytes = fs::read(&source_path).map_err(|error| error.to_string())?;
 
     store_file_source(&conn, &app, &input.session_id, &file_name, None, bytes)?;
+
+    touch_session(&conn, &input.session_id)?;
+    recalculate_session_metrics(&conn, &input.session_id)?;
+    fetch_session_detail(&conn, &input.session_id)
+}
+
+#[tauri::command]
+pub fn learning_import_folder(
+    app: AppHandle,
+    input: ImportFolderInput,
+) -> Result<LearningSessionDetail, String> {
+    let conn = open_connection(&app)?;
+    ensure_session_exists(&conn, &input.session_id)?;
+
+    let folder_path = PathBuf::from(&input.folder_path);
+    if !folder_path.exists() || !folder_path.is_dir() {
+        return Err("The selected folder could not be found.".into());
+    }
+
+    let imported = import_folder_sources(&conn, &app, &input.session_id, &folder_path)?;
+    if imported == 0 {
+        return Err("No supported files were found in that folder. Supported files include txt, md, pdf, docx, pptx, odt, rtf, html, xml, yaml, json, csv, audio, and video.".into());
+    }
 
     touch_session(&conn, &input.session_id)?;
     recalculate_session_metrics(&conn, &input.session_id)?;
@@ -1212,6 +1290,44 @@ fn session_source_storage_dir(app: &AppHandle, session_id: &str) -> Result<PathB
     Ok(directory)
 }
 
+fn import_folder_sources(
+    conn: &Connection,
+    app: &AppHandle,
+    session_id: &str,
+    folder_path: &Path,
+) -> Result<usize, String> {
+    let mut imported = 0_usize;
+
+    for entry in fs::read_dir(folder_path).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            imported += import_folder_sources(conn, app, session_id, &path)?;
+            continue;
+        }
+
+        if !path.is_file() {
+            continue;
+        }
+
+        let file_name = match path.file_name().and_then(|value| value.to_str()) {
+            Some(value) => value.to_string(),
+            None => continue,
+        };
+
+        if infer_file_source_type(&file_name, None).is_err() {
+            continue;
+        }
+
+        let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+        store_file_source(conn, app, session_id, &file_name, None, bytes)?;
+        imported += 1;
+    }
+
+    Ok(imported)
+}
+
 fn store_file_source(
     conn: &Connection,
     app: &AppHandle,
@@ -1222,10 +1338,12 @@ fn store_file_source(
 ) -> Result<(), String> {
     let source_type = infer_file_source_type(file_name, mime_type)?;
     let source_id = learning_id("source");
+    let extracted_text = extract_text_from_file_bytes(file_name, mime_type, &source_type, &bytes);
     let metadata = json!({
         "originalName": file_name,
         "mimeType": mime_type,
         "sizeBytes": bytes.len(),
+        "hasReadableText": extracted_text.is_some(),
     });
     let stored_name = format!(
         "{}-{}",
@@ -1234,12 +1352,6 @@ fn store_file_source(
     );
     let file_path = session_source_storage_dir(app, session_id)?.join(stored_name);
     fs::write(&file_path, &bytes).map_err(|error| error.to_string())?;
-
-    let extracted_text = if source_type == "text" {
-        String::from_utf8(bytes).ok()
-    } else {
-        None
-    };
 
     conn.execute(
         "INSERT INTO learning_sources
@@ -1301,11 +1413,47 @@ fn infer_file_source_type(file_name: &str, mime_type: Option<&str>) -> Result<St
         || lower_name.ends_with(".md")
         || lower_name.ends_with(".csv")
         || lower_name.ends_with(".json")
+        || lower_name.ends_with(".yaml")
+        || lower_name.ends_with(".yml")
+        || lower_name.ends_with(".xml")
+        || lower_name.ends_with(".html")
+        || lower_name.ends_with(".htm")
+        || lower_name.ends_with(".rtf")
+        || lower_name.ends_with(".docx")
+        || lower_name.ends_with(".docm")
+        || lower_name.ends_with(".doc")
+        || lower_name.ends_with(".pptx")
+        || lower_name.ends_with(".pptm")
+        || lower_name.ends_with(".ppt")
+        || lower_name.ends_with(".odt")
+        || lower_name.ends_with(".odp")
+        || lower_name.ends_with(".epub")
+        || lower_name.ends_with(".ini")
+        || lower_name.ends_with(".log")
+        || lower_name.ends_with(".tex")
+        || lower_name.ends_with(".rst")
     {
         return Ok("text".into());
     }
+    if lower_name.ends_with(".xls")
+        || lower_name.ends_with(".xlsx")
+        || lower_name.ends_with(".xlsm")
+        || lower_name.ends_with(".ods")
+        || lower_name.ends_with(".pages")
+        || lower_name.ends_with(".numbers")
+        || lower_name.ends_with(".key")
+        || lower_name.ends_with(".jpeg")
+        || lower_name.ends_with(".jpg")
+        || lower_name.ends_with(".png")
+        || lower_name.ends_with(".gif")
+        || lower_name.ends_with(".bmp")
+        || lower_name.ends_with(".webp")
+        || lower_name.ends_with(".heic")
+    {
+        return Ok("file".into());
+    }
 
-    Err("Only PDF, audio, video, and text-based files are supported right now.".into())
+    Err("Unsupported file type. Supported files include txt, md, csv, json, yaml, xml, html, rtf, pdf, docx, pptx, odt, epub, audio, and video.".into())
 }
 
 fn sanitize_file_name(value: &str) -> String {
@@ -1316,6 +1464,219 @@ fn sanitize_file_name(value: &str) -> String {
             _ => '_',
         })
         .collect()
+}
+
+fn display_title_from_file_name(file_name: &str) -> String {
+    Path::new(file_name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or(file_name)
+        .replace(['_', '-'], " ")
+        .trim()
+        .to_string()
+}
+
+fn extract_text_from_file_bytes(
+    file_name: &str,
+    _mime_type: Option<&str>,
+    source_type: &str,
+    bytes: &[u8],
+) -> Option<String> {
+    let lower_name = file_name.to_lowercase();
+
+    match source_type {
+        "pdf" => pdf_extract::extract_text_from_mem(bytes)
+            .ok()
+            .and_then(|text| normalize_extracted_text(&text)),
+        "text" => {
+            if lower_name.ends_with(".docx") || lower_name.ends_with(".docm") {
+                extract_zip_named_entries_text(
+                    bytes,
+                    &[
+                        "word/document.xml",
+                        "word/footnotes.xml",
+                        "word/endnotes.xml",
+                        "word/comments.xml",
+                    ],
+                )
+            } else if lower_name.ends_with(".pptx") || lower_name.ends_with(".pptm") {
+                extract_zip_matching_entries_text(bytes, "ppt/slides/slide", ".xml")
+            } else if lower_name.ends_with(".odt")
+                || lower_name.ends_with(".odp")
+                || lower_name.ends_with(".epub")
+            {
+                extract_zip_matching_entries_text(bytes, "", ".xhtml")
+                    .or_else(|| extract_zip_matching_entries_text(bytes, "", ".html"))
+                    .or_else(|| extract_zip_named_entries_text(bytes, &["content.xml"]))
+            } else if lower_name.ends_with(".rtf") {
+                normalize_extracted_text(&strip_rtf_text(&String::from_utf8_lossy(bytes)))
+            } else if lower_name.ends_with(".html")
+                || lower_name.ends_with(".htm")
+                || lower_name.ends_with(".xml")
+            {
+                normalize_extracted_text(&strip_markup(&String::from_utf8_lossy(bytes)))
+            } else {
+                normalize_extracted_text(&String::from_utf8_lossy(bytes))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn normalize_extracted_text(value: &str) -> Option<String> {
+    let lines = value
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
+fn extract_zip_named_entries_text(bytes: &[u8], entries: &[&str]) -> Option<String> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut sections = Vec::new();
+
+    for entry in entries {
+        if let Ok(mut file) = archive.by_name(entry) {
+            let mut content = String::new();
+            if file.read_to_string(&mut content).is_ok() {
+                if let Some(text) = normalize_extracted_text(&strip_markup(&content)) {
+                    sections.push(text);
+                }
+            }
+        }
+    }
+
+    normalize_extracted_text(&sections.join("\n\n"))
+}
+
+fn extract_zip_matching_entries_text(
+    bytes: &[u8],
+    prefix: &str,
+    suffix: &str,
+) -> Option<String> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut sections = Vec::new();
+
+    for index in 0..archive.len() {
+        if let Ok(mut file) = archive.by_index(index) {
+            let name = file.name().to_string();
+            if !prefix.is_empty() && !name.starts_with(prefix) {
+                continue;
+            }
+            if !name.ends_with(suffix) {
+                continue;
+            }
+
+            let mut content = String::new();
+            if file.read_to_string(&mut content).is_ok() {
+                if let Some(text) = normalize_extracted_text(&strip_markup(&content)) {
+                    sections.push((name, text));
+                }
+            }
+        }
+    }
+
+    sections.sort_by(|left, right| left.0.cmp(&right.0));
+    normalize_extracted_text(
+        &sections
+            .into_iter()
+            .map(|(_, text)| text)
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    )
+}
+
+fn strip_markup(input: &str) -> String {
+    let mut output = String::new();
+    let mut in_tag = false;
+    let mut last_was_space = false;
+
+    for character in input.chars() {
+        match character {
+            '<' => {
+                in_tag = true;
+                if !last_was_space {
+                    output.push(' ');
+                    last_was_space = true;
+                }
+            }
+            '>' => {
+                in_tag = false;
+            }
+            _ if in_tag => {}
+            _ if character.is_whitespace() => {
+                if !last_was_space {
+                    output.push(' ');
+                    last_was_space = true;
+                }
+            }
+            _ => {
+                output.push(character);
+                last_was_space = false;
+            }
+        }
+    }
+
+    decode_entities(&output)
+}
+
+fn decode_entities(value: &str) -> String {
+    value
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&#39;", "'")
+        .replace("&#10;", "\n")
+        .replace("&#13;", "\n")
+        .replace("&#9;", "\t")
+}
+
+fn strip_rtf_text(input: &str) -> String {
+    let mut output = String::new();
+    let mut characters = input.chars().peekable();
+    let mut skip_word = false;
+
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' => {
+                skip_word = true;
+                while let Some(next) = characters.peek() {
+                    if next.is_ascii_alphabetic() || *next == '-' || next.is_ascii_digit() {
+                        characters.next();
+                    } else {
+                        break;
+                    }
+                }
+                if matches!(characters.peek(), Some(' ')) {
+                    characters.next();
+                }
+                if matches!(characters.peek(), Some('\'')) {
+                    characters.next();
+                    characters.next();
+                    characters.next();
+                }
+            }
+            '{' | '}' if skip_word => {
+                skip_word = false;
+            }
+            '{' | '}' => {}
+            _ => {
+                skip_word = false;
+                output.push(character);
+            }
+        }
+    }
+
+    output
 }
 
 fn parse_json_array<T>(value: &str) -> Result<Vec<T>, String>

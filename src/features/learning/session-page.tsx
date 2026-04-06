@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   DownloadIcon,
   PlayIcon,
@@ -30,6 +30,7 @@ const learningTabs = [
 export function LearningSessionPage() {
   const navigate = useNavigate()
   const { sessionId = '' } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [detail, setDetail] = useState<LearningSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -162,6 +163,79 @@ export function LearningSessionPage() {
     }
   }
 
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab')
+
+    if (!requestedTab) {
+      return
+    }
+
+    const matchedTab = learningTabs.find(
+      (tab) => tab.toLowerCase() === requestedTab.toLowerCase(),
+    )
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('tab')
+    setSearchParams(nextParams, { replace: true })
+
+    if (matchedTab) {
+      setActiveTab(matchedTab)
+    }
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!detail) {
+      return
+    }
+
+    const action = searchParams.get('action')
+
+    if (!action) {
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('action')
+    setSearchParams(nextParams, { replace: true })
+
+    const executeAction = async () => {
+      if (action === 'generate-summary') {
+        await runAction('generate-summary', () =>
+          learningApi.generateSummary(detail.session.id),
+        )
+        return
+      }
+
+      if (action === 'generate-flashcards') {
+        await runAction('generate-flashcards', () =>
+          learningApi.generateFlashcards(detail.session.id),
+        )
+        return
+      }
+
+      if (action === 'generate-quiz') {
+        await runAction('generate-quiz', () =>
+          learningApi.generateQuiz(
+            detail.session.id,
+            quizQuestionCount,
+            quizDifficulty,
+          ),
+        )
+        setQuizAnswers({})
+        setQuizResult(null)
+      }
+    }
+
+    void executeAction()
+  }, [
+    detail,
+    quizDifficulty,
+    quizQuestionCount,
+    runAction,
+    searchParams,
+    setSearchParams,
+  ])
+
   const openEditModal = () => {
     if (!detail) {
       return
@@ -229,6 +303,31 @@ export function LearningSessionPage() {
         attachError instanceof Error
           ? attachError.message
           : 'Could not attach the file.',
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  const handleImportFolder = async () => {
+    if (!detail) {
+      return
+    }
+
+    setBusyAction('import-folder')
+    try {
+      const nextDetail = await learningApi.importFolderFromDialog(detail.session.id)
+      if (!nextDetail) {
+        return
+      }
+
+      applyDetail(nextDetail)
+      setError(null)
+    } catch (folderError) {
+      setError(
+        folderError instanceof Error
+          ? folderError.message
+          : 'Could not import the selected folder.',
       )
     } finally {
       setBusyAction(null)
@@ -615,6 +714,11 @@ export function LearningSessionPage() {
                 }
               />
             </label>
+            <p className="muted-copy">
+              Supported files: txt, md, csv, json, yaml, xml, html, rtf, pdf, doc,
+              docx, ppt, pptx, xls, xlsx, odt, epub, images, audio, and video.
+              Use Import Folder to pull in a whole study directory.
+            </p>
 
             <div className="learning-inline-actions">
               <button
@@ -633,6 +737,14 @@ export function LearningSessionPage() {
                 onClick={() => void handleAttachFile()}
               >
                 <span>{busyAction === 'attach-file' ? 'Uploading...' : 'Attach File'}</span>
+              </button>
+              <button
+                className="ghost-button learning-file-button"
+                onClick={() => void handleImportFolder()}
+              >
+                <span>
+                  {busyAction === 'import-folder' ? 'Importing...' : 'Import Folder'}
+                </span>
               </button>
             </div>
           </Panel>

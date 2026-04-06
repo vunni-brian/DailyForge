@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react'
 import { FolderIcon, PlusIcon } from '../../components/icons'
 import { Badge, PageIntro, Panel, ProgressBar } from '../../components/ui'
 import { useAppContext } from '../../context/app-context'
+import { useTasks } from '../tasks/context'
 import { getProjectProgress } from '../../lib/helpers'
 import type { ProjectStatus } from '../../types'
 
 const projectStatuses: ProjectStatus[] = ['Planned', 'Active', 'On Hold', 'Completed', 'Archived']
 
 export function ProjectsPage() {
-  const { addProject, projects, tasks } = useAppContext()
+  const { addProject, projects } = useAppContext()
+  const { tasks } = useTasks()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')

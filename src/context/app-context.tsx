@@ -12,30 +12,27 @@ import { noteService } from '../services/note.service'
 import { projectService } from '../services/project.service'
 import { reviewService } from '../services/review.service'
 import { settingsService } from '../services/settings.service'
-import { taskService } from '../services/task.service'
 import {
-  getWorkspacePersistenceFingerprint,
+  getWorkspaceCorePersistenceFingerprint,
   workspaceRepository,
 } from '../repositories/workspace.repository'
 import type {
   ComposerState,
   CreateNoteInput,
   CreateProjectInput,
-  CreateTaskInput,
   DailyReview,
   FocusSession,
   Note,
   Project,
   ReviewDraft,
   SettingsState,
-  Task,
-  TaskStatus,
   TimerModeId,
   TimerState,
+  WorkspaceCoreState,
 } from '../types'
+import { useTasks } from '../features/tasks/context'
 
 interface AppContextValue {
-  tasks: Task[]
   projects: Project[]
   notes: Note[]
   reviews: DailyReview[]
@@ -43,9 +40,6 @@ interface AppContextValue {
   settings: SettingsState
   timer: TimerState
   composer: ComposerState
-  addTask: (input: CreateTaskInput) => void
-  updateTask: (taskId: string, patch: Partial<Task>) => void
-  moveTask: (taskId: string, status: TaskStatus) => void
   addProject: (input: CreateProjectInput) => void
   updateProject: (projectId: string, patch: Partial<Project>) => void
   addNote: (input: CreateNoteInput) => void
@@ -66,28 +60,26 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
+function createSeedWorkspaceCore(): WorkspaceCoreState {
+  const { tasks: _tasks, ...core } = createSeedWorkspace()
+  return core
+}
+
 export function AppProvider({ children }: PropsWithChildren) {
-  const [workspace, setWorkspace] = useState(createSeedWorkspace)
+  const [workspace, setWorkspace] = useState<WorkspaceCoreState>(createSeedWorkspaceCore)
   const [composer, setComposer] = useState<ComposerState>({ mode: null })
   const [hydrated, setHydrated] = useState(false)
   const lastSavedFingerprint = useRef('')
   const pendingSave = useRef<Promise<void>>(Promise.resolve())
+  const { hydrated: tasksHydrated, replaceTasks, tasks } = useTasks()
 
-  const {
-    tasks,
-    projects,
-    notes,
-    reviews,
-    focusSessions,
-    settings,
-    timer,
-  } = workspace
+  const { projects, notes, reviews, focusSessions, settings, timer } = workspace
 
   useEffect(() => {
     let active = true
 
     void workspaceRepository
-      .load()
+      .loadCore()
       .then((loadedWorkspace) => {
         if (!active) {
           return
@@ -95,7 +87,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
         setWorkspace(loadedWorkspace)
         lastSavedFingerprint.current =
-          getWorkspacePersistenceFingerprint(loadedWorkspace)
+          getWorkspaceCorePersistenceFingerprint(loadedWorkspace)
         setHydrated(true)
       })
       .catch((error) => {
@@ -103,9 +95,9 @@ export function AppProvider({ children }: PropsWithChildren) {
           return
         }
 
-        console.error('Failed to load persisted workspace.', error)
+        console.error('Failed to load persisted workspace core.', error)
         lastSavedFingerprint.current =
-          getWorkspacePersistenceFingerprint(createSeedWorkspace())
+          getWorkspaceCorePersistenceFingerprint(createSeedWorkspaceCore())
         setHydrated(true)
       })
 
@@ -123,7 +115,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       return
     }
 
-    const nextFingerprint = getWorkspacePersistenceFingerprint(workspace)
+    const nextFingerprint = getWorkspaceCorePersistenceFingerprint(workspace)
 
     if (nextFingerprint === lastSavedFingerprint.current) {
       return
@@ -136,11 +128,11 @@ export function AppProvider({ children }: PropsWithChildren) {
           return
         }
 
-        await workspaceRepository.save(workspace)
+        await workspaceRepository.saveCore(workspace)
         lastSavedFingerprint.current = nextFingerprint
       })
       .catch((error) => {
-        console.error('Failed to persist workspace.', error)
+        console.error('Failed to persist workspace core.', error)
       })
   }, [hydrated, workspace])
 
@@ -155,18 +147,6 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     return () => window.clearInterval(interval)
   }, [timer.isRunning])
-
-  const addTask = (input: CreateTaskInput) => {
-    setWorkspace((current) => taskService.createTask(current, input))
-  }
-
-  const updateTask = (taskId: string, patch: Partial<Task>) => {
-    setWorkspace((current) => taskService.updateTask(current, taskId, patch))
-  }
-
-  const moveTask = (taskId: string, status: TaskStatus) => {
-    setWorkspace((current) => taskService.moveTaskStatus(current, taskId, status))
-  }
 
   const addProject = (input: CreateProjectInput) => {
     setWorkspace((current) => projectService.createProject(current, input))
@@ -222,25 +202,37 @@ export function AppProvider({ children }: PropsWithChildren) {
     setWorkspace((current) => focusService.resetTimer(current))
   }
 
-  const exportWorkspace = () => workspaceRepository.export(workspace)
+  const exportWorkspace = () => workspaceRepository.export({ ...workspace, tasks })
 
   const importWorkspace = async (serialized: string) => {
-    const nextWorkspace = await workspaceRepository.import(serialized)
+    const nextWorkspace = workspaceRepository.parse(serialized)
+    const { tasks: nextTasks, ...nextCore } = nextWorkspace
+
+    await workspaceRepository.saveCore(nextCore)
+    await workspaceRepository.saveTasks(nextTasks)
+
     lastSavedFingerprint.current =
-      getWorkspacePersistenceFingerprint(nextWorkspace)
-    setWorkspace(nextWorkspace)
+      getWorkspaceCorePersistenceFingerprint(nextCore)
+    setWorkspace(nextCore)
+    replaceTasks(nextTasks, { persisted: true })
     setComposer({ mode: null })
   }
 
   const resetWorkspace = async () => {
-    const nextWorkspace = await workspaceRepository.reset()
+    const nextWorkspace = createSeedWorkspace()
+    const { tasks: nextTasks, ...nextCore } = nextWorkspace
+
+    await workspaceRepository.saveCore(nextCore)
+    await workspaceRepository.saveTasks(nextTasks)
+
     lastSavedFingerprint.current =
-      getWorkspacePersistenceFingerprint(nextWorkspace)
-    setWorkspace(nextWorkspace)
+      getWorkspaceCorePersistenceFingerprint(nextCore)
+    setWorkspace(nextCore)
+    replaceTasks(nextTasks, { persisted: true })
     setComposer({ mode: null })
   }
 
-  if (!hydrated) {
+  if (!hydrated || !tasksHydrated) {
     return (
       <div className="app-loading-screen">
         <div className="panel app-loading-panel">
@@ -254,7 +246,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   return (
     <AppContext.Provider
       value={{
-        tasks,
         projects,
         notes,
         reviews,
@@ -262,9 +253,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         settings,
         timer,
         composer,
-        addTask,
-        updateTask,
-        moveTask,
         addProject,
         updateProject,
         addNote,

@@ -1,6 +1,7 @@
 import { RotateCcwIcon, TimerIcon, PlayIcon } from '../../components/icons'
 import { PageIntro, Panel } from '../../components/ui'
 import { useAppContext } from '../../context/app-context'
+import { useTasks } from '../tasks/context'
 import { formatMinutes, formatTimer } from '../../lib/helpers'
 import { timerModes } from '../../types'
 
@@ -11,9 +12,9 @@ export function FocusPage() {
     setLinkedTask,
     setTimerMode,
     startTimer,
-    tasks,
     timer,
   } = useAppContext()
+  const { tasks } = useTasks()
 
   const today = new Date().toISOString().slice(0, 10)
   const todaySessions = focusSessions.filter((session) => session.startTime.slice(0, 10) === today)

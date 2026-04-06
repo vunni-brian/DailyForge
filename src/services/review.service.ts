@@ -1,12 +1,12 @@
 import { createId, nowIso } from '../lib/core'
-import type { ReviewDraft, WorkspaceState } from '../types'
+import type { ReviewDraft, WorkspaceCoreState } from '../types'
 
 export const reviewService = {
   saveReview(
-    workspace: WorkspaceState,
+    workspace: WorkspaceCoreState,
     reviewDate: string,
     draft: ReviewDraft,
-  ): WorkspaceState {
+  ): WorkspaceCoreState {
     const existing = workspace.reviews.find((review) => review.reviewDate === reviewDate)
 
     if (!existing) {

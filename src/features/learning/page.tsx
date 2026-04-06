@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DownloadIcon,
   GraduationCapIcon,
@@ -12,6 +12,7 @@ import type { LearningSessionCard } from './types'
 
 export function LearningPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const importRef = useRef<HTMLInputElement | null>(null)
   const [sessions, setSessions] = useState<LearningSessionCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +57,19 @@ export function LearningPage() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    const action = searchParams.get('action')
+
+    if (action !== 'create') {
+      return
+    }
+
+    setCreateOpen(true)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('action')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
@@ -117,6 +131,28 @@ export function LearningPage() {
     }
   }
 
+  const handleCreateFromFile = async () => {
+    setBusyAction('create-from-file')
+    try {
+      const created = await learningApi.createSessionFromDialog()
+      if (!created) {
+        return
+      }
+
+      setSessions((current) => [created, ...current])
+      setError(null)
+      navigate(`/learning/${created.id}`)
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Could not create a session from the selected file.',
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   const handleImportSession = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
 
@@ -154,8 +190,18 @@ export function LearningPage() {
           <>
             <button
               className="ghost-button"
+              onClick={() => void handleCreateFromFile()}
+              disabled={busyAction === 'create-from-file'}
+            >
+              <PlusIcon className="button-icon" />
+              <span>
+                {busyAction === 'create-from-file' ? 'Opening...' : 'Create From File'}
+              </span>
+            </button>
+            <button
+              className="ghost-button"
               onClick={() => importRef.current?.click()}
-              disabled={busyAction === 'import'}
+              disabled={busyAction === 'import' || busyAction === 'create-from-file'}
             >
               <DownloadIcon className="button-icon" />
               <span>Import Session</span>

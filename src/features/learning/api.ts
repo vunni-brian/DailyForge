@@ -21,7 +21,7 @@ async function invokeLearning<T>(command: string, args?: Record<string, unknown>
   try {
     return await invoke<T>(command, args)
   } catch (error) {
-    throw new Error(typeof error === 'string' ? error : 'Learning action failed.')
+    throw new Error(extractLearningError(error))
   }
 }
 
@@ -37,6 +37,26 @@ export const learningApi = {
     goals?: string
   }) {
     return invokeLearning<LearningSessionCard>('learning_create_session', { input })
+  },
+
+  async createSessionFromDialog() {
+    ensureDesktop()
+
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      filters: [studyFileFilter],
+    })
+
+    if (!selected || Array.isArray(selected)) {
+      return null
+    }
+
+    return invokeLearning<LearningSessionCard>('learning_create_session_from_file', {
+      input: {
+        filePath: selected,
+      },
+    })
   },
 
   getSessionDetail(sessionId: string) {
@@ -95,24 +115,7 @@ export const learningApi = {
     const selected = await open({
       directory: false,
       multiple: false,
-      filters: [
-        {
-          name: 'Study files',
-          extensions: [
-            'txt',
-            'md',
-            'csv',
-            'json',
-            'pdf',
-            'mp3',
-            'wav',
-            'm4a',
-            'mp4',
-            'mov',
-            'webm',
-          ],
-        },
-      ],
+      filters: [studyFileFilter],
     })
 
     if (!selected || Array.isArray(selected)) {
@@ -123,6 +126,27 @@ export const learningApi = {
       input: {
         sessionId,
         filePath: selected,
+      },
+    })
+  },
+
+  async importFolderFromDialog(sessionId: string) {
+    ensureDesktop()
+
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Select a folder of study materials',
+    })
+
+    if (!selected || Array.isArray(selected)) {
+      return null
+    }
+
+    return invokeLearning<LearningSessionDetail>('learning_import_folder', {
+      input: {
+        sessionId,
+        folderPath: selected,
       },
     })
   },
@@ -239,4 +263,76 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   }
 
   return window.btoa(binary)
+}
+
+const studyFileFilter = {
+  name: 'Study files',
+  extensions: [
+    'txt',
+    'md',
+    'csv',
+    'json',
+    'yaml',
+    'yml',
+    'xml',
+    'html',
+    'htm',
+    'rtf',
+    'pdf',
+    'docx',
+    'docm',
+    'doc',
+    'pptx',
+    'pptm',
+    'ppt',
+    'xls',
+    'xlsx',
+    'xlsm',
+    'ods',
+    'odt',
+    'odp',
+    'epub',
+    'pages',
+    'numbers',
+    'key',
+    'ini',
+    'log',
+    'tex',
+    'rst',
+    'jpeg',
+    'jpg',
+    'png',
+    'gif',
+    'bmp',
+    'webp',
+    'heic',
+    'mp3',
+    'wav',
+    'm4a',
+    'mp4',
+    'mov',
+    'webm',
+  ],
+}
+
+function extractLearningError(error: unknown) {
+  if (typeof error === 'string') {
+    return error
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    if ('message' in error && typeof error.message === 'string') {
+      return error.message
+    }
+
+    if ('error' in error && typeof error.error === 'string') {
+      return error.error
+    }
+  }
+
+  return 'Learning action failed.'
 }
