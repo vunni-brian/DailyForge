@@ -120,6 +120,14 @@ export function SearchIcon(props: IconProps) {
   )
 }
 
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="m14.5 6.5-5 5.5 5 5.5" />
+    </BaseIcon>
+  )
+}
+
 export function DownloadIcon(props: IconProps) {
   return (
     <BaseIcon {...props}>
