@@ -3,7 +3,6 @@ import { getDatabase, isDesktopRuntime } from '../db/client'
 import { nowIso } from '../lib/core'
 import type { TimerState, WorkspaceState } from '../types'
 import { tauriFocusRepository } from './focus.repository'
-import { tauriLearningRepository } from './learning.repository'
 import { tauriNoteRepository } from './note.repository'
 import { tauriProjectRepository } from './project.repository'
 import { tauriReviewRepository } from './review.repository'
@@ -29,9 +28,6 @@ function normalizeWorkspace(value: unknown): WorkspaceState {
     tasks: Array.isArray(value.tasks) ? value.tasks : fallback.tasks,
     projects: Array.isArray(value.projects) ? value.projects : fallback.projects,
     notes: Array.isArray(value.notes) ? value.notes : fallback.notes,
-    learningItems: Array.isArray(value.learningItems)
-      ? value.learningItems
-      : fallback.learningItems,
     reviews: Array.isArray(value.reviews) ? value.reviews : fallback.reviews,
     focusSessions: Array.isArray(value.focusSessions)
       ? value.focusSessions
@@ -89,7 +85,6 @@ function isWorkspaceEmpty(workspace: WorkspaceState) {
     workspace.projects.length === 0 &&
     workspace.tasks.length === 0 &&
     workspace.notes.length === 0 &&
-    workspace.learningItems.length === 0 &&
     workspace.reviews.length === 0 &&
     workspace.focusSessions.length === 0
   )
@@ -115,12 +110,11 @@ function normalizeWorkspaceForPersistence(workspace: WorkspaceState): WorkspaceS
 
 async function loadTauriWorkspace() {
   const db = await getDatabase()
-  const [projects, tasks, notes, learningItems, reviews, focusSessions, settings, timer] =
+  const [projects, tasks, notes, reviews, focusSessions, settings, timer] =
     await Promise.all([
       tauriProjectRepository.listProjects(db),
       tauriTaskRepository.listTasks(db),
       tauriNoteRepository.listNotes(db),
-      tauriLearningRepository.listLearningItems(db),
       tauriReviewRepository.listReviews(db),
       tauriFocusRepository.listFocusSessions(db),
       tauriSettingsRepository.loadSettings(db),
@@ -131,7 +125,6 @@ async function loadTauriWorkspace() {
     projects,
     tasks,
     notes,
-    learningItems,
     reviews,
     focusSessions,
     settings,
@@ -155,7 +148,6 @@ async function saveTauriWorkspace(workspace: WorkspaceState) {
     await tauriProjectRepository.replaceProjects(db, persisted.projects)
     await tauriTaskRepository.replaceTasks(db, persisted.tasks)
     await tauriNoteRepository.replaceNotes(db, persisted.notes)
-    await tauriLearningRepository.replaceLearningItems(db, persisted.learningItems)
     await tauriReviewRepository.replaceReviews(db, persisted.reviews)
     await tauriFocusRepository.replaceFocusSessions(db, persisted.focusSessions)
     await tauriSettingsRepository.saveSettings(db, persisted.settings)

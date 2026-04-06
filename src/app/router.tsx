@@ -6,6 +6,7 @@ import { ProjectsPage } from '../features/projects/page'
 import { NotesPage } from '../features/notes/page'
 import { FocusPage } from '../features/focus/page'
 import { LearningPage } from '../features/learning/page'
+import { LearningSessionPage } from '../features/learning/session-page'
 import { ReviewsPage } from '../features/reviews/page'
 import { SettingsPage } from '../features/settings/page'
 
@@ -19,6 +20,7 @@ export function AppRouter() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/learning" element={<LearningPage />} />
+        <Route path="/learning/:sessionId" element={<LearningSessionPage />} />
         <Route path="/focus" element={<FocusPage />} />
         <Route path="/reviews" element={<ReviewsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
