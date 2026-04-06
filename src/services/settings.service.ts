@@ -1,17 +1,17 @@
 import { createDefaultTimerState } from '../data/seed'
-import type { SettingsState, WorkspaceState } from '../types'
+import type { SettingsState, WorkspaceCoreState } from '../types'
 
 export const settingsService = {
   updateSettings(
-    workspace: WorkspaceState,
+    workspace: WorkspaceCoreState,
     patch: Partial<SettingsState>,
-  ): WorkspaceState {
+  ): WorkspaceCoreState {
     const settings = {
       ...workspace.settings,
       ...patch,
     }
 
-    const nextWorkspace: WorkspaceState = {
+    const nextWorkspace: WorkspaceCoreState = {
       ...workspace,
       settings,
     }

@@ -3,11 +3,10 @@ import type {
   CreateTaskInput,
   Task,
   TaskStatus,
-  WorkspaceState,
 } from '../types'
 
 export const taskService = {
-  createTask(workspace: WorkspaceState, input: CreateTaskInput): WorkspaceState {
+  createTask(tasks: Task[], input: CreateTaskInput): Task[] {
     const createdAt = nowIso()
     const task: Task = {
       id: createId('task'),
@@ -25,37 +24,23 @@ export const taskService = {
       completedAt: null,
     }
 
-    return {
-      ...workspace,
-      tasks: [task, ...workspace.tasks],
-    }
+    return [task, ...tasks]
   },
 
-  updateTask(
-    workspace: WorkspaceState,
-    taskId: string,
-    patch: Partial<Task>,
-  ): WorkspaceState {
-    return {
-      ...workspace,
-      tasks: workspace.tasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              ...patch,
-              updatedAt: nowIso(),
-            }
-          : task,
-      ),
-    }
+  updateTask(tasks: Task[], taskId: string, patch: Partial<Task>): Task[] {
+    return tasks.map((task) =>
+      task.id === taskId
+        ? {
+            ...task,
+            ...patch,
+            updatedAt: nowIso(),
+          }
+        : task,
+    )
   },
 
-  moveTaskStatus(
-    workspace: WorkspaceState,
-    taskId: string,
-    status: TaskStatus,
-  ): WorkspaceState {
-    return this.updateTask(workspace, taskId, {
+  moveTaskStatus(tasks: Task[], taskId: string, status: TaskStatus): Task[] {
+    return this.updateTask(tasks, taskId, {
       status,
       completedAt: status === 'Done' ? nowIso() : null,
     })

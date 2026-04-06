@@ -15,6 +15,7 @@ import {
 import { useAppContext } from '../context/app-context'
 import { isDesktopRuntime } from '../db/client'
 import { learningApi } from '../features/learning/api'
+import { useTasks } from '../features/tasks/context'
 import type { LearningSessionCard } from '../features/learning/types'
 import { cx } from '../lib/helpers'
 import { noteTypes, taskStatuses, type NoteType } from '../types'
@@ -39,10 +40,9 @@ export function AppShell() {
     openComposer,
     notes,
     projects,
-    tasks,
     addNote,
-    addTask,
   } = useAppContext()
+  const { addTask, tasks } = useTasks()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [learningSessions, setLearningSessions] = useState<LearningSessionCard[]>([])

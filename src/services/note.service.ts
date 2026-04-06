@@ -1,8 +1,11 @@
 import { createId, nowIso } from '../lib/core'
-import type { CreateNoteInput, Note, WorkspaceState } from '../types'
+import type { CreateNoteInput, Note, WorkspaceCoreState } from '../types'
 
 export const noteService = {
-  createNote(workspace: WorkspaceState, input: CreateNoteInput): WorkspaceState {
+  createNote(
+    workspace: WorkspaceCoreState,
+    input: CreateNoteInput,
+  ): WorkspaceCoreState {
     const createdAt = nowIso()
     const note: Note = {
       id: createId('note'),
@@ -23,10 +26,10 @@ export const noteService = {
   },
 
   updateNote(
-    workspace: WorkspaceState,
+    workspace: WorkspaceCoreState,
     noteId: string,
     patch: Partial<Note>,
-  ): WorkspaceState {
+  ): WorkspaceCoreState {
     return {
       ...workspace,
       notes: workspace.notes.map((note) =>

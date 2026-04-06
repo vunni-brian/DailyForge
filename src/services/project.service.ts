@@ -1,11 +1,11 @@
 import { createId, nowIso } from '../lib/core'
-import type { CreateProjectInput, Project, WorkspaceState } from '../types'
+import type { CreateProjectInput, Project, WorkspaceCoreState } from '../types'
 
 export const projectService = {
   createProject(
-    workspace: WorkspaceState,
+    workspace: WorkspaceCoreState,
     input: CreateProjectInput,
-  ): WorkspaceState {
+  ): WorkspaceCoreState {
     const createdAt = nowIso()
     const project: Project = {
       id: createId('project'),
@@ -26,10 +26,10 @@ export const projectService = {
   },
 
   updateProject(
-    workspace: WorkspaceState,
+    workspace: WorkspaceCoreState,
     projectId: string,
     patch: Partial<Project>,
-  ): WorkspaceState {
+  ): WorkspaceCoreState {
     return {
       ...workspace,
       projects: workspace.projects.map((project) =>

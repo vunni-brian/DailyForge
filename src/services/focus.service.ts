@@ -1,6 +1,6 @@
 import { createDefaultTimerState } from '../data/seed'
 import { createId, nowIso } from '../lib/core'
-import { timerModes, type TimerModeId, type WorkspaceState } from '../types'
+import { timerModes, type TimerModeId, type WorkspaceCoreState } from '../types'
 
 function durationSecondsFor(modeId: TimerModeId) {
   const mode = timerModes.find((entry) => entry.id === modeId) ?? timerModes[0]
@@ -8,7 +8,10 @@ function durationSecondsFor(modeId: TimerModeId) {
 }
 
 export const focusService = {
-  setTimerMode(workspace: WorkspaceState, modeId: TimerModeId): WorkspaceState {
+  setTimerMode(
+    workspace: WorkspaceCoreState,
+    modeId: TimerModeId,
+  ): WorkspaceCoreState {
     if (workspace.timer.isRunning) {
       return workspace
     }
@@ -22,7 +25,10 @@ export const focusService = {
     }
   },
 
-  setLinkedTask(workspace: WorkspaceState, taskId: string | null): WorkspaceState {
+  setLinkedTask(
+    workspace: WorkspaceCoreState,
+    taskId: string | null,
+  ): WorkspaceCoreState {
     return {
       ...workspace,
       timer: {
@@ -32,7 +38,7 @@ export const focusService = {
     }
   },
 
-  startTimer(workspace: WorkspaceState): WorkspaceState {
+  startTimer(workspace: WorkspaceCoreState): WorkspaceCoreState {
     const sessionStartedAt = workspace.timer.sessionStartedAt ?? nowIso()
 
     return {
@@ -49,7 +55,7 @@ export const focusService = {
     }
   },
 
-  pauseTimer(workspace: WorkspaceState): WorkspaceState {
+  pauseTimer(workspace: WorkspaceCoreState): WorkspaceCoreState {
     if (!workspace.timer.isRunning || !workspace.timer.endsAt) {
       return workspace
     }
@@ -70,7 +76,7 @@ export const focusService = {
     }
   },
 
-  resetTimer(workspace: WorkspaceState): WorkspaceState {
+  resetTimer(workspace: WorkspaceCoreState): WorkspaceCoreState {
     return {
       ...workspace,
       timer: {
@@ -80,7 +86,7 @@ export const focusService = {
     }
   },
 
-  refreshTimer(workspace: WorkspaceState): WorkspaceState {
+  refreshTimer(workspace: WorkspaceCoreState): WorkspaceCoreState {
     if (!workspace.timer.isRunning || !workspace.timer.endsAt) {
       return workspace
     }

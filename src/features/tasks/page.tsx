@@ -3,13 +3,15 @@ import { useSearchParams } from 'react-router-dom'
 import { CheckSquareIcon, PlusIcon } from '../../components/icons'
 import { Badge, PageIntro, Panel } from '../../components/ui'
 import { useAppContext } from '../../context/app-context'
+import { useTasks } from './context'
 import { cx, formatShortDate, isOverdue, priorityRank } from '../../lib/helpers'
 import type { TaskStatus } from '../../types'
 
 const taskFilters = ['All', 'Backlog', 'Today', 'In Progress', 'Blocked', 'Done'] as const
 
 export function TasksPage() {
-  const { moveTask, openComposer, projects, tasks, updateTask } = useAppContext()
+  const { openComposer, projects } = useAppContext()
+  const { moveTask, tasks, updateTask } = useTasks()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filter, setFilter] = useState<(typeof taskFilters)[number]>('All')
   const selectedTaskId = searchParams.get('task')
