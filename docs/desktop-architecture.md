@@ -13,7 +13,7 @@ The Learning workspace is the strongest reference implementation for the directi
 - native domain and persistence logic in [`src-tauri/src/learning.rs`](../src-tauri/src/learning.rs)
 - SQLite-backed structured data
 - app-managed file storage for imported sources
-- Rust-side OpenAI integration
+- Rust-side FastAPI integration for local AI
 
 ### Legacy workspace context
 
@@ -88,7 +88,7 @@ DailyForge should converge on one native-first desktop architecture:
 
 - Tauri runs with an explicit production CSP and dev CSP in [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)
 - native commands are registered explicitly in [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs)
-- OpenAI calls are made only from the Rust side when the user triggers Learning AI actions
+- Rust calls the local FastAPI service, and FastAPI is the only layer that calls Ollama when the user triggers Learning AI actions
 
 ## Immediate Follow-through
 

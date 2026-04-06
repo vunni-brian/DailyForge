@@ -1,11 +1,9 @@
 use base64::Engine;
 use chrono::{Duration, Utc};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    env,
     fs,
     io::{Cursor, Read},
     path::{Path, PathBuf},
@@ -14,8 +12,12 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 use zip::ZipArchive;
 
+use crate::learning_ai::{
+    ensure_rag_indexed, json_schema_flashcards, json_schema_quiz, json_schema_summary,
+    local_json_completion, local_text_completion,
+};
+
 const DB_FILENAME: &str = "dailyforge.db";
-const OPENAI_CHAT_COMPLETIONS_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -697,53 +699,23 @@ pub async fn learning_generate_summary(
     ensure_session_exists(&conn, &session_id)?;
     let session = fetch_session_card(&conn, &session_id)?;
     let sources = list_sources(&conn, &session_id)?;
+    let version_hash = source_version_hash(&sources);
     let source_context = build_source_context(&sources)?;
-    let schema = json!({
-        "type": "object",
-        "properties": {
-            "summaryShort": { "type": "string", "minLength": 1 },
-            "summaryDetailed": { "type": "string", "minLength": 1 },
-            "keyConcepts": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "term": { "type": "string" },
-                        "explanation": { "type": "string" }
-                    },
-                    "required": ["term", "explanation"],
-                    "additionalProperties": false
-                }
-            },
-            "definitions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "term": { "type": "string" },
-                        "definition": { "type": "string" }
-                    },
-                    "required": ["term", "definition"],
-                    "additionalProperties": false
-                }
-            },
-            "actionPoints": {
-                "type": "array",
-                "items": { "type": "string" }
-            }
-        },
-        "required": ["summaryShort", "summaryDetailed", "keyConcepts", "definitions", "actionPoints"],
-        "additionalProperties": false
-    });
+    ensure_rag_indexed(&session_id, &version_hash, &sources).await?;
     let user_prompt = format!(
         "Session title: {}\nSubject: {}\nGoals: {}\n\nStudy material:\n{}",
         session.title, session.subject, session.goals, source_context
     );
-    let ai_output = openai_json_completion(
+    let rag_query = format!(
+        "Generate a concise study summary, key concepts, definitions, and revision actions for the session '{}' in subject '{}'.",
+        session.title, session.subject
+    );
+    let ai_output = local_json_completion(
         "You are an academic study assistant for a desktop learning workspace. Build concise, accurate study materials only from the provided session context.",
         &user_prompt,
-        "learning_summary",
-        schema,
+        Some(&session_id),
+        Some(&rag_query),
+        json_schema_summary(),
     )
     .await?;
     let key_concepts = parse_json_array_value::<LearningConcept>(&ai_output["keyConcepts"])?;
@@ -763,7 +735,7 @@ pub async fn learning_generate_summary(
             serde_json::to_string(&definitions).map_err(|error| error.to_string())?,
             serde_json::to_string(&action_points).map_err(|error| error.to_string())?,
             now_iso(),
-            source_version_hash(&sources),
+            version_hash,
         ],
     )
     .map_err(|error| error.to_string())?;
@@ -783,8 +755,10 @@ pub async fn learning_generate_flashcards(
     ensure_session_exists(&conn, &session_id)?;
     let session = fetch_session_card(&conn, &session_id)?;
     let sources = list_sources(&conn, &session_id)?;
+    let version_hash = source_version_hash(&sources);
     let source_context = build_source_context(&sources)?;
     let latest_summary = latest_summary(&conn, &session_id)?;
+    ensure_rag_indexed(&session_id, &version_hash, &sources).await?;
     let user_prompt = format!(
         "Session title: {}\nSubject: {}\nSummary:\n{}\n\nStudy material:\n{}",
         session.title,
@@ -795,33 +769,16 @@ pub async fn learning_generate_flashcards(
             .unwrap_or_default(),
         source_context
     );
-    let schema = json!({
-        "type": "object",
-        "properties": {
-            "flashcards": {
-                "type": "array",
-                "minItems": 6,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "front": { "type": "string", "minLength": 1 },
-                        "back": { "type": "string", "minLength": 1 },
-                        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
-                        "tags": { "type": "array", "items": { "type": "string" } }
-                    },
-                    "required": ["front", "back", "difficulty", "tags"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        "required": ["flashcards"],
-        "additionalProperties": false
-    });
-    let ai_output = openai_json_completion(
+    let rag_query = format!(
+        "Generate active-recall flashcards for the session '{}' using the saved study material.",
+        session.title
+    );
+    let ai_output = local_json_completion(
         "You create high-quality active-recall flashcards for a desktop study workspace. Use only the supplied material.",
         &user_prompt,
-        "learning_flashcards",
-        schema,
+        Some(&session_id),
+        Some(&rag_query),
+        json_schema_flashcards(),
     )
     .await?;
     let cards = parse_json_array_value::<GeneratedFlashcard>(&ai_output["flashcards"])?;
@@ -916,8 +873,10 @@ pub async fn learning_generate_quiz(
     ensure_session_exists(&conn, &input.session_id)?;
     let session = fetch_session_card(&conn, &input.session_id)?;
     let sources = list_sources(&conn, &input.session_id)?;
+    let version_hash = source_version_hash(&sources);
     let source_context = build_source_context(&sources)?;
     let latest_summary = latest_summary(&conn, &input.session_id)?;
+    ensure_rag_indexed(&input.session_id, &version_hash, &sources).await?;
     let question_count = input.question_count.unwrap_or(8).clamp(4, 12);
     let difficulty = input
         .difficulty
@@ -935,37 +894,16 @@ pub async fn learning_generate_quiz(
             .unwrap_or_default(),
         source_context
     );
-    let schema = json!({
-        "type": "object",
-        "properties": {
-            "title": { "type": "string", "minLength": 1 },
-            "instructions": { "type": "string", "minLength": 1 },
-            "questions": {
-                "type": "array",
-                "minItems": question_count,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": { "type": "string", "enum": ["mcq", "short_answer", "true_false"] },
-                        "prompt": { "type": "string", "minLength": 1 },
-                        "options": { "type": "array", "items": { "type": "string" } },
-                        "answer": { "type": "string", "minLength": 1 },
-                        "explanation": { "type": "string", "minLength": 1 },
-                        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] }
-                    },
-                    "required": ["type", "prompt", "options", "answer", "explanation", "difficulty"],
-                    "additionalProperties": false
-                }
-            }
-        },
-        "required": ["title", "instructions", "questions"],
-        "additionalProperties": false
-    });
-    let ai_output = openai_json_completion(
+    let rag_query = format!(
+        "Generate a {} difficulty quiz with {} questions for the session '{}'.",
+        difficulty, question_count, session.title
+    );
+    let ai_output = local_json_completion(
         "You create rigorous study quizzes based only on the supplied learning session context. Avoid asking about information not present in the material.",
         &user_prompt,
-        "learning_quiz",
-        schema,
+        Some(&input.session_id),
+        Some(&rag_query),
+        json_schema_quiz(question_count),
     )
     .await?;
     let questions = parse_json_array_value::<GeneratedQuizQuestion>(&ai_output["questions"])?;
@@ -1109,6 +1047,7 @@ pub async fn learning_send_tutor_message(
 
     let session = fetch_session_card(&conn, &input.session_id)?;
     let sources = list_sources(&conn, &input.session_id)?;
+    let version_hash = source_version_hash(&sources);
     let summary = latest_summary(&conn, &input.session_id)?;
     let thread = fetch_thread(&conn, &input.thread_id)?
         .ok_or_else(|| "Tutor thread not found.".to_string())?;
@@ -1122,8 +1061,9 @@ pub async fn learning_send_tutor_message(
          VALUES (?1, ?2, 'user', ?3, '[]', ?4)",
         params![learning_id("message"), input.thread_id, message, now_iso()],
     )
-    .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())?;
 
+    ensure_rag_indexed(&input.session_id, &version_hash, &sources).await?;
     let prior_messages = thread
         .messages
         .iter()
@@ -1153,9 +1093,11 @@ pub async fn learning_send_tutor_message(
         build_source_context(&sources)?,
         message
     );
-    let assistant_reply = openai_text_completion(
+    let assistant_reply = local_text_completion(
         "You are an AI tutor for a desktop learning app. Answer only from the provided session context. If the context does not support the answer, say that clearly. Prefer concise, helpful explanations and revision prompts.",
         &user_prompt,
+        Some(&input.session_id),
+        Some(message),
     )
     .await?;
 
@@ -2696,108 +2638,4 @@ fn import_session_bundle_into_db(
 
     recalculate_session_metrics(conn, &session_id)?;
     Ok(())
-}
-
-fn openai_headers() -> Result<HeaderMap, String> {
-    let api_key = env::var("OPENAI_API_KEY")
-        .or_else(|_| env::var("DAILYFORGE_OPENAI_API_KEY"))
-        .map_err(|_| {
-            "Missing OPENAI_API_KEY. Set it in the environment before using Learning AI."
-                .to_string()
-        })?;
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", api_key)).map_err(|error| error.to_string())?,
-    );
-    if let Ok(project) = env::var("OPENAI_PROJECT") {
-        headers.insert(
-            "OpenAI-Project",
-            HeaderValue::from_str(&project).map_err(|error| error.to_string())?,
-        );
-    }
-    Ok(headers)
-}
-
-fn openai_model() -> String {
-    env::var("DAILYFORGE_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string())
-}
-
-async fn openai_json_completion(
-    system_prompt: &str,
-    user_prompt: &str,
-    schema_name: &str,
-    schema: Value,
-) -> Result<Value, String> {
-    let payload = json!({
-        "model": openai_model(),
-        "messages": [
-            { "role": "system", "content": system_prompt },
-            { "role": "user", "content": user_prompt }
-        ],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": schema_name,
-                "strict": true,
-                "schema": schema
-            }
-        }
-    });
-
-    let raw = openai_completion_request(payload).await?;
-    serde_json::from_str(&raw)
-        .map_err(|_| "The AI returned malformed structured data.".to_string())
-}
-
-async fn openai_text_completion(system_prompt: &str, user_prompt: &str) -> Result<String, String> {
-    let payload = json!({
-        "model": openai_model(),
-        "messages": [
-            { "role": "system", "content": system_prompt },
-            { "role": "user", "content": user_prompt }
-        ]
-    });
-
-    openai_completion_request(payload).await
-}
-
-async fn openai_completion_request(payload: Value) -> Result<String, String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .post(OPENAI_CHAT_COMPLETIONS_URL)
-        .headers(openai_headers()?)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|error| format!("OpenAI request failed: {}", error))?;
-    let status = response.status();
-    let body = response.text().await.map_err(|error| error.to_string())?;
-
-    if !status.is_success() {
-        let api_message = serde_json::from_str::<Value>(&body)
-            .ok()
-            .and_then(|value| value["error"]["message"].as_str().map(ToOwned::to_owned))
-            .unwrap_or(body);
-        return Err(format!("OpenAI request failed: {}", api_message));
-    }
-
-    let value = serde_json::from_str::<Value>(&body).map_err(|error| error.to_string())?;
-    value["choices"][0]["message"]["content"]
-        .as_str()
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            value["choices"][0]["message"]["content"]
-                .as_array()
-                .and_then(|items| {
-                    items.iter().find_map(|item| {
-                        item["text"]
-                            .as_str()
-                            .map(ToOwned::to_owned)
-                            .or_else(|| item["content"].as_str().map(ToOwned::to_owned))
-                    })
-                })
-        })
-        .ok_or_else(|| "OpenAI response did not contain message content.".to_string())
 }

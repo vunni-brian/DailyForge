@@ -1,4 +1,5 @@
 mod learning;
+mod learning_ai;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 

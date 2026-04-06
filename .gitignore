@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+ai-service/.venv/
+ai-service/storage/
 
 # Editor directories and files
 .vscode/*

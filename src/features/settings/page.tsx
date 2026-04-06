@@ -198,7 +198,7 @@ export function SettingsPage() {
 
       <Panel className="settings-footer-panel">
         DailyForge stores core data locally on this device. Learning AI actions send
-        session content to OpenAI only when you trigger them.
+        session content to the local AI backend only when you trigger them.
       </Panel>
     </div>
   )

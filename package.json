@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "backend:setup": "cd ai-service && py -3.12 -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r requirements.txt",
+    "backend:dev": "cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8765",
     "lint": "eslint .",
     "preview": "vite preview",
     "tauri": "tauri",

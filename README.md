@@ -7,7 +7,7 @@ DailyForge is a desktop-first productivity workspace built with React, TypeScrip
 - React 19 + TypeScript + Vite
 - Tauri 2 desktop shell
 - SQLite via `@tauri-apps/plugin-sql` and `tauri-plugin-sql`
-- Native Rust commands for Learning, file handling, and OpenAI-backed AI actions
+- Native Rust commands for Learning, file handling, and local AI backend calls
 
 ## Current Architecture
 
@@ -41,17 +41,31 @@ The Learning workspace currently supports:
 
 ## Environment Configuration
 
-Learning AI actions call OpenAI from the Rust side. Set one of these before running the desktop app:
+Learning AI actions use a local FastAPI backend from the Rust side. By default DailyForge uses:
 
-- `OPENAI_API_KEY`
-- `DAILYFORGE_OPENAI_API_KEY`
+- backend `http://127.0.0.1:8765`
+- Ollama `http://127.0.0.1:11434`
+- model `llama3`
+- embedding model `nomic-embed-text`
 
-Optional overrides:
+Backend and model overrides:
 
-- `OPENAI_PROJECT`
-- `DAILYFORGE_OPENAI_MODEL`
+- `DAILYFORGE_AI_BASE_URL`
+- `DAILYFORGE_OLLAMA_BASE_URL`
+- `DAILYFORGE_OLLAMA_MODEL`
+- `DAILYFORGE_OLLAMA_EMBED_MODEL`
 
-If no model override is set, the app defaults to `gpt-5-mini`.
+DailyForge does not call Ollama directly anymore. [`src-tauri/src/learning_ai.rs`](./src-tauri/src/learning_ai.rs) calls the FastAPI service, and the FastAPI service under [`ai-service`](./ai-service) calls Ollama using `/api/generate` and `/api/embed`.
+
+Start the local backend with:
+
+```bash
+cd ai-service
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8765
+```
 
 ## Development
 
