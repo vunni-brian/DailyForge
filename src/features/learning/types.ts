@@ -1,5 +1,12 @@
 export type LearningSessionStatus = 'active' | 'paused' | 'completed' | 'archived'
-export type LearningSourceType = 'text' | 'note' | 'url' | 'pdf' | 'audio' | 'video'
+export type LearningSourceType =
+  | 'text'
+  | 'note'
+  | 'url'
+  | 'pdf'
+  | 'audio'
+  | 'video'
+  | 'file'
 export type FlashcardDifficulty = 'easy' | 'medium' | 'hard'
 export type QuizQuestionType = 'mcq' | 'short_answer' | 'true_false'
 

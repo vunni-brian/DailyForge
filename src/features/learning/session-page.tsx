@@ -235,6 +235,31 @@ export function LearningSessionPage() {
     }
   }
 
+  const handleImportFolder = async () => {
+    if (!detail) {
+      return
+    }
+
+    setBusyAction('import-folder')
+    try {
+      const nextDetail = await learningApi.importFolderFromDialog(detail.session.id)
+      if (!nextDetail) {
+        return
+      }
+
+      applyDetail(nextDetail)
+      setError(null)
+    } catch (folderError) {
+      setError(
+        folderError instanceof Error
+          ? folderError.message
+          : 'Could not import the selected folder.',
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   const handleDeleteSource = async (sourceId: string) => {
     if (!detail) {
       return
@@ -615,6 +640,11 @@ export function LearningSessionPage() {
                 }
               />
             </label>
+            <p className="muted-copy">
+              Supported files: txt, md, csv, json, yaml, xml, html, rtf, pdf, doc,
+              docx, ppt, pptx, xls, xlsx, odt, epub, images, audio, and video.
+              Use Import Folder to pull in a whole study directory.
+            </p>
 
             <div className="learning-inline-actions">
               <button
@@ -633,6 +663,14 @@ export function LearningSessionPage() {
                 onClick={() => void handleAttachFile()}
               >
                 <span>{busyAction === 'attach-file' ? 'Uploading...' : 'Attach File'}</span>
+              </button>
+              <button
+                className="ghost-button learning-file-button"
+                onClick={() => void handleImportFolder()}
+              >
+                <span>
+                  {busyAction === 'import-folder' ? 'Importing...' : 'Import Folder'}
+                </span>
               </button>
             </div>
           </Panel>

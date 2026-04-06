@@ -117,6 +117,28 @@ export function LearningPage() {
     }
   }
 
+  const handleCreateFromFile = async () => {
+    setBusyAction('create-from-file')
+    try {
+      const created = await learningApi.createSessionFromDialog()
+      if (!created) {
+        return
+      }
+
+      setSessions((current) => [created, ...current])
+      setError(null)
+      navigate(`/learning/${created.id}`)
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Could not create a session from the selected file.',
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   const handleImportSession = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
 
@@ -154,8 +176,18 @@ export function LearningPage() {
           <>
             <button
               className="ghost-button"
+              onClick={() => void handleCreateFromFile()}
+              disabled={busyAction === 'create-from-file'}
+            >
+              <PlusIcon className="button-icon" />
+              <span>
+                {busyAction === 'create-from-file' ? 'Opening...' : 'Create From File'}
+              </span>
+            </button>
+            <button
+              className="ghost-button"
               onClick={() => importRef.current?.click()}
-              disabled={busyAction === 'import'}
+              disabled={busyAction === 'import' || busyAction === 'create-from-file'}
             >
               <DownloadIcon className="button-icon" />
               <span>Import Session</span>
