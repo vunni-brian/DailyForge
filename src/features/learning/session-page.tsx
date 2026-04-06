@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   DownloadIcon,
   PlayIcon,
@@ -30,6 +30,7 @@ const learningTabs = [
 export function LearningSessionPage() {
   const navigate = useNavigate()
   const { sessionId = '' } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [detail, setDetail] = useState<LearningSessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -161,6 +162,79 @@ export function LearningSessionPage() {
       setBusyAction(null)
     }
   }
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab')
+
+    if (!requestedTab) {
+      return
+    }
+
+    const matchedTab = learningTabs.find(
+      (tab) => tab.toLowerCase() === requestedTab.toLowerCase(),
+    )
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('tab')
+    setSearchParams(nextParams, { replace: true })
+
+    if (matchedTab) {
+      setActiveTab(matchedTab)
+    }
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!detail) {
+      return
+    }
+
+    const action = searchParams.get('action')
+
+    if (!action) {
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('action')
+    setSearchParams(nextParams, { replace: true })
+
+    const executeAction = async () => {
+      if (action === 'generate-summary') {
+        await runAction('generate-summary', () =>
+          learningApi.generateSummary(detail.session.id),
+        )
+        return
+      }
+
+      if (action === 'generate-flashcards') {
+        await runAction('generate-flashcards', () =>
+          learningApi.generateFlashcards(detail.session.id),
+        )
+        return
+      }
+
+      if (action === 'generate-quiz') {
+        await runAction('generate-quiz', () =>
+          learningApi.generateQuiz(
+            detail.session.id,
+            quizQuestionCount,
+            quizDifficulty,
+          ),
+        )
+        setQuizAnswers({})
+        setQuizResult(null)
+      }
+    }
+
+    void executeAction()
+  }, [
+    detail,
+    quizDifficulty,
+    quizQuestionCount,
+    runAction,
+    searchParams,
+    setSearchParams,
+  ])
 
   const openEditModal = () => {
     if (!detail) {

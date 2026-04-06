@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DownloadIcon,
   GraduationCapIcon,
@@ -12,6 +12,7 @@ import type { LearningSessionCard } from './types'
 
 export function LearningPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const importRef = useRef<HTMLInputElement | null>(null)
   const [sessions, setSessions] = useState<LearningSessionCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +57,19 @@ export function LearningPage() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    const action = searchParams.get('action')
+
+    if (action !== 'create') {
+      return
+    }
+
+    setCreateOpen(true)
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('action')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
