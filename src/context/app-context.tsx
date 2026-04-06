@@ -77,6 +77,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [composer, setComposer] = useState<ComposerState>({ mode: null })
   const [hydrated, setHydrated] = useState(false)
   const lastSavedFingerprint = useRef('')
+  const pendingSave = useRef<Promise<void>>(Promise.resolve())
 
   const {
     tasks,
@@ -104,11 +105,12 @@ export function AppProvider({ children }: PropsWithChildren) {
           getWorkspacePersistenceFingerprint(loadedWorkspace)
         setHydrated(true)
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) {
           return
         }
 
+        console.error('Failed to load persisted workspace.', error)
         lastSavedFingerprint.current =
           getWorkspacePersistenceFingerprint(createSeedWorkspace())
         setHydrated(true)
@@ -134,8 +136,19 @@ export function AppProvider({ children }: PropsWithChildren) {
       return
     }
 
-    lastSavedFingerprint.current = nextFingerprint
-    void workspaceRepository.save(workspace)
+    pendingSave.current = pendingSave.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (nextFingerprint === lastSavedFingerprint.current) {
+          return
+        }
+
+        await workspaceRepository.save(workspace)
+        lastSavedFingerprint.current = nextFingerprint
+      })
+      .catch((error) => {
+        console.error('Failed to persist workspace.', error)
+      })
   }, [hydrated, workspace])
 
   useEffect(() => {
@@ -242,6 +255,17 @@ export function AppProvider({ children }: PropsWithChildren) {
       getWorkspacePersistenceFingerprint(nextWorkspace)
     setWorkspace(nextWorkspace)
     setComposer({ mode: null })
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="app-loading-screen">
+        <div className="panel app-loading-panel">
+          <strong>Opening your workspace...</strong>
+          <p>DailyForge is loading saved tasks, projects, notes, and settings.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -119,6 +119,33 @@ select:focus {
   min-height: 100vh;
 }
 
+.app-loading-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(246, 168, 40, 0.14), transparent 36%),
+    var(--bg);
+}
+
+.app-loading-panel {
+  width: min(420px, 100%);
+  padding: 24px;
+  text-align: center;
+}
+
+.app-loading-panel strong {
+  display: block;
+  font-size: 1.3rem;
+  letter-spacing: -0.03em;
+}
+
+.app-loading-panel p {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
