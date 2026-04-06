@@ -31,6 +31,8 @@ const navItems = [
   { label: 'Settings', path: '/settings', shortcut: ',', icon: SettingsIcon },
 ] as const
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dailyforge.sidebar.collapsed'
+
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -43,6 +45,13 @@ export function AppShell() {
     addNote,
   } = useAppContext()
   const { addTask, tasks } = useTasks()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [learningSessions, setLearningSessions] = useState<LearningSessionCard[]>([])
@@ -75,6 +84,17 @@ export function AppShell() {
     setPaletteOpen(false)
     setQuery('')
   }, [location.pathname, location.search])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_COLLAPSED_STORAGE_KEY,
+        String(sidebarCollapsed),
+      )
+    } catch {
+      // Ignore local UI preference storage failures.
+    }
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     if (!isDesktopRuntime()) {
@@ -212,35 +232,55 @@ export function AppShell() {
 
   return (
     <>
-      <div className="app-shell">
-        <aside className="sidebar">
-          <button className="brand-block" onClick={() => navigate('/dashboard')}>
-            <span className="brand-mark">
-              <FlameIcon className="brand-mark-icon" />
-            </span>
-            <h2 className="brand-title">
-              Daily<span>Forge</span>
-            </h2>
-          </button>
+      <div className={cx('app-shell', sidebarCollapsed && 'app-shell-collapsed')}>
+        <aside className={cx('sidebar', sidebarCollapsed && 'sidebar-collapsed')}>
+          <div className="sidebar-header">
+            <div className="brand-block">
+              <button
+                className="brand-mark-button"
+                onClick={() => setSidebarCollapsed((current) => !current)}
+                aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                type="button"
+              >
+                <span className="brand-mark">
+                  <FlameIcon className="brand-mark-icon" />
+                </span>
+              </button>
+              <button
+                className="brand-copy-button"
+                onClick={() => navigate('/dashboard')}
+                title={sidebarCollapsed ? 'DailyForge' : undefined}
+                type="button"
+              >
+                <h2 className="brand-title">
+                  Daily<span>Forge</span>
+                </h2>
+              </button>
+            </div>
+          </div>
 
           <nav className="sidebar-nav">
             {navItems.map(({ icon: Icon, label, path }) => (
               <NavLink
                 key={path}
                 to={path}
+                title={sidebarCollapsed ? label : undefined}
                 className={({ isActive }) =>
                   cx('sidebar-link', isActive && 'sidebar-link-active')
                 }
               >
                 <span className="sidebar-link-copy">
                   <Icon className="sidebar-nav-icon" />
-                  <span>{label}</span>
+                  <span className="sidebar-link-label">{label}</span>
                 </span>
               </NavLink>
             ))}
           </nav>
 
-          <div className="sidebar-footer">DailyForge v0.1.0</div>
+          <div className="sidebar-footer">
+            {sidebarCollapsed ? 'v0.1.0' : 'DailyForge v0.1.0'}
+          </div>
         </aside>
 
         <div className="shell-main">
