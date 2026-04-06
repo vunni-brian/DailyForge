@@ -8,7 +8,6 @@ import {
 } from 'react'
 import { createSeedWorkspace } from '../data/seed'
 import { focusService } from '../services/focus.service'
-import { learningService } from '../services/learning.service'
 import { noteService } from '../services/note.service'
 import { projectService } from '../services/project.service'
 import { reviewService } from '../services/review.service'
@@ -20,13 +19,11 @@ import {
 } from '../repositories/workspace.repository'
 import type {
   ComposerState,
-  CreateLearningItemInput,
   CreateNoteInput,
   CreateProjectInput,
   CreateTaskInput,
   DailyReview,
   FocusSession,
-  LearningItem,
   Note,
   Project,
   ReviewDraft,
@@ -41,7 +38,6 @@ interface AppContextValue {
   tasks: Task[]
   projects: Project[]
   notes: Note[]
-  learningItems: LearningItem[]
   reviews: DailyReview[]
   focusSessions: FocusSession[]
   settings: SettingsState
@@ -54,8 +50,6 @@ interface AppContextValue {
   updateProject: (projectId: string, patch: Partial<Project>) => void
   addNote: (input: CreateNoteInput) => void
   updateNote: (noteId: string, patch: Partial<Note>) => void
-  addLearningItem: (input: CreateLearningItemInput) => void
-  updateLearningItem: (itemId: string, patch: Partial<LearningItem>) => void
   saveReview: (reviewDate: string, patch: ReviewDraft) => void
   updateSettings: (patch: Partial<SettingsState>) => void
   openComposer: (mode: ComposerState['mode']) => void
@@ -83,7 +77,6 @@ export function AppProvider({ children }: PropsWithChildren) {
     tasks,
     projects,
     notes,
-    learningItems,
     reviews,
     focusSessions,
     settings,
@@ -193,16 +186,6 @@ export function AppProvider({ children }: PropsWithChildren) {
     setWorkspace((current) => noteService.updateNote(current, noteId, patch))
   }
 
-  const addLearningItem = (input: CreateLearningItemInput) => {
-    setWorkspace((current) => learningService.createLearningItem(current, input))
-  }
-
-  const updateLearningItem = (itemId: string, patch: Partial<LearningItem>) => {
-    setWorkspace((current) =>
-      learningService.updateLearningItem(current, itemId, patch),
-    )
-  }
-
   const saveReview = (reviewDate: string, patch: ReviewDraft) => {
     setWorkspace((current) => reviewService.saveReview(current, reviewDate, patch))
   }
@@ -274,7 +257,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         tasks,
         projects,
         notes,
-        learningItems,
         reviews,
         focusSessions,
         settings,
@@ -287,8 +269,6 @@ export function AppProvider({ children }: PropsWithChildren) {
         updateProject,
         addNote,
         updateNote,
-        addLearningItem,
-        updateLearningItem,
         saveReview,
         updateSettings,
         openComposer,

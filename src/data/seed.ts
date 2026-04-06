@@ -38,7 +38,6 @@ export function createSeedWorkspace(): WorkspaceState {
     tasks: [],
     projects: [],
     notes: [],
-    learningItems: [],
     reviews: [],
     focusSessions: [],
     settings: seedSettings,

@@ -149,7 +149,6 @@ export interface WorkspaceState {
   tasks: Task[]
   projects: Project[]
   notes: Note[]
-  learningItems: LearningItem[]
   reviews: DailyReview[]
   focusSessions: FocusSession[]
   settings: SettingsState

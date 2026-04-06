@@ -313,6 +313,15 @@ select:focus {
   letter-spacing: -0.04em;
 }
 
+.eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .page-description {
   margin: 0;
   color: var(--muted);
@@ -872,6 +881,267 @@ select:focus {
   grid-template-columns: minmax(0, 1fr) 360px;
 }
 
+.learning-metric-grid,
+.learning-session-grid,
+.learning-session-layout,
+.learning-summary-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.learning-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.learning-metric-card,
+.learning-empty-panel,
+.learning-toolbar-panel,
+.learning-session-header,
+.learning-session-pane {
+  padding: 20px;
+}
+
+.learning-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.learning-metric-card strong {
+  font-size: 1.35rem;
+}
+
+.learning-metric-card span,
+.learning-session-description,
+.learning-source-preview,
+.learning-chat-message span,
+.settings-status-copy {
+  color: var(--muted);
+}
+
+.learning-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.learning-toolbar-search {
+  flex: 1;
+}
+
+.learning-toolbar-filter {
+  width: 220px;
+}
+
+.learning-session-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.learning-session-card,
+.learning-source-card,
+.learning-flashcard-row,
+.learning-thread-item,
+.learning-review-row,
+.learning-choice-item,
+.learning-bullet-list li {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-panel-soft);
+}
+
+.learning-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  text-align: left;
+  box-shadow: var(--shadow);
+  transition: transform 140ms ease, border-color 140ms ease;
+}
+
+.learning-session-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(246, 168, 40, 0.28);
+}
+
+.learning-session-head,
+.learning-session-foot,
+.learning-source-head,
+.learning-review-row,
+.learning-quiz-result,
+.learning-thread-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.learning-session-stats,
+.learning-progress-list,
+.learning-source-meta,
+.learning-review-meta,
+.learning-inline-actions,
+.learning-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.learning-empty-panel {
+  text-align: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.learning-session-header {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.learning-session-overview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.learning-session-progress {
+  display: flex;
+  min-width: 240px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.learning-session-layout,
+.learning-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.learning-session-pane,
+.learning-quiz-panel,
+.learning-quiz-question,
+.learning-chat-log,
+.learning-review-log,
+.learning-source-list,
+.learning-flashcard-list,
+.learning-thread-list,
+.learning-bullet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.learning-key-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.learning-key-metrics span {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-panel-soft);
+}
+
+.learning-source-card,
+.learning-flashcard-row,
+.learning-thread-item,
+.learning-review-row {
+  padding: 16px;
+  text-align: left;
+  color: var(--text);
+}
+
+.learning-file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.learning-bullet-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.learning-bullet-list li {
+  padding: 14px;
+}
+
+.learning-choice-list {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-choice-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.learning-choice-item input {
+  width: auto;
+  margin: 0;
+}
+
+.learning-quiz-question {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-panel-soft);
+}
+
+.learning-quiz-result {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.learning-chat-log {
+  min-height: 240px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.learning-chat-message {
+  display: flex;
+  max-width: 88%;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--bg-panel-soft);
+}
+
+.learning-chat-message-assistant {
+  align-self: flex-start;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.learning-chat-message:not(.learning-chat-message-assistant) {
+  align-self: flex-end;
+  background: rgba(246, 168, 40, 0.12);
+}
+
+.learning-thread-item-active,
+.learning-session-danger,
+.selected {
+  border-color: rgba(246, 168, 40, 0.34);
+}
+
 .learning-edit-panel {
   display: flex;
   flex-direction: column;
@@ -1010,7 +1280,9 @@ select:focus {
   .dashboard-metrics,
   .project-card-grid,
   .notes-card-grid,
-  .learning-topic-grid {
+  .learning-topic-grid,
+  .learning-metric-grid,
+  .learning-session-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1034,7 +1306,12 @@ select:focus {
   .project-card-grid,
   .notes-card-grid,
   .focus-summary-grid,
-  .learning-topic-grid {
+  .learning-topic-grid,
+  .learning-metric-grid,
+  .learning-session-grid,
+  .learning-session-layout,
+  .learning-summary-grid,
+  .learning-key-metrics {
     grid-template-columns: 1fr;
   }
 
@@ -1050,7 +1327,15 @@ select:focus {
   .review-surface-header,
   .task-simple-row,
   .note-editor-topbar,
-  .field-grid {
+  .field-grid,
+  .learning-toolbar,
+  .learning-session-overview,
+  .learning-session-head,
+  .learning-session-foot,
+  .learning-source-head,
+  .learning-review-row,
+  .learning-quiz-result,
+  .learning-thread-item {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1060,6 +1345,14 @@ select:focus {
   }
 
   .page-actions > * {
+    width: 100%;
+  }
+
+  .learning-toolbar-filter,
+  .learning-session-progress,
+  .learning-chat-message,
+  .learning-quick-actions > *,
+  .learning-inline-actions > * {
     width: 100%;
   }
 

@@ -1,131 +1,285 @@
-import { useMemo, useState } from 'react'
-import { GraduationCapIcon, PlusIcon } from '../../components/icons'
-import { Badge, PageIntro, Panel, ProgressBar } from '../../components/ui'
-import { useAppContext } from '../../context/app-context'
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  DownloadIcon,
+  GraduationCapIcon,
+  PlusIcon,
+} from '../../components/icons'
+import { Badge, PageIntro, Panel } from '../../components/ui'
+import { formatMinutes, formatShortDate } from '../../lib/helpers'
+import { learningApi } from './api'
+import type { LearningSessionCard } from './types'
 
 export function LearningPage() {
-  const { addLearningItem, learningItems, updateLearningItem } = useAppContext()
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(learningItems[0]?.id ?? null)
+  const navigate = useNavigate()
+  const importRef = useRef<HTMLInputElement | null>(null)
+  const [sessions, setSessions] = useState<LearningSessionCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [createOpen, setCreateOpen] = useState(false)
   const [title, setTitle] = useState('')
-  const [topic, setTopic] = useState('')
-  const [nextStep, setNextStep] = useState('')
-  const [resourceLink, setResourceLink] = useState('')
-  const selectedItem = learningItems.find((item) => item.id === selectedId) ?? learningItems[0]
+  const [subject, setSubject] = useState('')
+  const [description, setDescription] = useState('')
+  const [goals, setGoals] = useState('')
+  const [busyAction, setBusyAction] = useState<string | null>(null)
 
-  const sortedItems = useMemo(
-    () => [...learningItems].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [learningItems],
+  useEffect(() => {
+    let active = true
+
+    const loadSessions = async () => {
+      try {
+        const nextSessions = await learningApi.listSessions()
+        if (!active) {
+          return
+        }
+
+        setSessions(nextSessions)
+        setError(null)
+      } catch (loadError) {
+        if (!active) {
+          return
+        }
+
+        setError(loadError instanceof Error ? loadError.message : 'Could not load Learning.')
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadSessions()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((session) => {
+      const matchesQuery =
+        [session.title, session.subject, session.description]
+          .join(' ')
+          .toLowerCase()
+          .includes(query.toLowerCase())
+      const matchesStatus =
+        statusFilter === 'all' ? true : session.status === statusFilter
+
+      return matchesQuery && matchesStatus
+    })
+  }, [query, sessions, statusFilter])
+
+  const averageConfidence = sessions.length
+    ? Math.round(
+        sessions.reduce((sum, session) => sum + session.confidenceScore, 0) /
+          sessions.length,
+      )
+    : 0
+  const dueReviews = sessions.reduce(
+    (sum, session) => sum + session.dueFlashcards,
+    0,
+  )
+  const totalStudyMinutes = sessions.reduce(
+    (sum, session) => sum + session.totalStudyMinutes,
+    0,
   )
 
-  const closeModal = () => {
-    setIsModalOpen(false)
+  const closeCreateModal = () => {
+    setCreateOpen(false)
     setTitle('')
-    setTopic('')
-    setNextStep('')
-    setResourceLink('')
+    setSubject('')
+    setDescription('')
+    setGoals('')
+  }
+
+  const handleCreateSession = async () => {
+    setBusyAction('create')
+    try {
+      const created = await learningApi.createSession({
+        title,
+        subject,
+        description,
+        goals,
+      })
+      setSessions((current) => [created, ...current])
+      closeCreateModal()
+      navigate(`/learning/${created.id}`)
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Could not create the session.',
+      )
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  const handleImportSession = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    setBusyAction('import')
+    try {
+      const raw = await file.text()
+      const bundle = JSON.parse(raw)
+      const imported = await learningApi.importSessionBundle(bundle)
+      const nextSessions = await learningApi.listSessions()
+      setSessions(nextSessions)
+      navigate(`/learning/${imported.id}`)
+      setError(null)
+    } catch (importError) {
+      setError(
+        importError instanceof Error
+          ? importError.message
+          : 'Could not import the session bundle.',
+      )
+    } finally {
+      setBusyAction(null)
+      event.target.value = ''
+    }
   }
 
   return (
     <div className="page-stack">
       <PageIntro
-        title="Learning Tracker"
+        title="Learning"
+        description="Build study sessions, generate summaries, run quizzes, and review flashcards from one desktop workspace."
         actions={
-          <button className="primary-button page-cta-button" onClick={() => setIsModalOpen(true)}>
-            <PlusIcon className="button-icon" />
-            <span>Add Topic</span>
-          </button>
+          <>
+            <button
+              className="ghost-button"
+              onClick={() => importRef.current?.click()}
+              disabled={busyAction === 'import'}
+            >
+              <DownloadIcon className="button-icon" />
+              <span>Import Session</span>
+            </button>
+            <button
+              className="primary-button page-cta-button"
+              onClick={() => setCreateOpen(true)}
+            >
+              <PlusIcon className="button-icon" />
+              <span>New Session</span>
+            </button>
+          </>
         }
       />
 
-      {sortedItems.length ? (
-        <div className="learning-screen-grid">
-          <section className="learning-topic-grid">
-            {sortedItems.map((item) => (
-              <button
-                key={item.id}
-                className={selectedItem?.id === item.id ? 'learning-topic-card learning-topic-card-active' : 'learning-topic-card'}
-                onClick={() => setSelectedId(item.id)}
-              >
-                <div className="learning-topic-head">
-                  <Badge tone="info">{item.stage}</Badge>
-                  <span>{item.progressPercent}%</span>
-                </div>
-                <h3>{item.title}</h3>
-                <p>{item.topic || 'No category'}</p>
-                <ProgressBar value={item.progressPercent} />
-                <small>{item.nextStep || 'No next step yet.'}</small>
-              </button>
-            ))}
-          </section>
+      <input
+        ref={importRef}
+        type="file"
+        accept="application/json"
+        className="visually-hidden"
+        onChange={handleImportSession}
+      />
 
-          {selectedItem ? (
-            <Panel className="learning-edit-panel">
-              <div className="modal-header">
-                <div>
-                  <h3>{selectedItem.title}</h3>
-                  <p className="modal-subcopy">{selectedItem.topic || 'Learning topic'}</p>
-                </div>
-                <Badge tone="info">{selectedItem.stage}</Badge>
+      <div className="learning-metric-grid">
+        <Panel className="learning-metric-card">
+          <strong>{sessions.length}</strong>
+          <span>Active sessions</span>
+        </Panel>
+        <Panel className="learning-metric-card">
+          <strong>{dueReviews}</strong>
+          <span>Flashcards due</span>
+        </Panel>
+        <Panel className="learning-metric-card">
+          <strong>{averageConfidence}%</strong>
+          <span>Average confidence</span>
+        </Panel>
+        <Panel className="learning-metric-card">
+          <strong>{formatMinutes(totalStudyMinutes)}</strong>
+          <span>Total study time</span>
+        </Panel>
+      </div>
+
+      <Panel className="learning-toolbar-panel">
+        <div className="learning-toolbar">
+          <label className="field learning-toolbar-search">
+            <span>Search sessions</span>
+            <input
+              placeholder="Find by title, subject, or notes..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          <label className="field learning-toolbar-filter">
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+        </div>
+      </Panel>
+
+      {error ? <p className="text-danger">{error}</p> : null}
+
+      {loading ? (
+        <Panel className="learning-empty-panel">
+          <p>Loading learning sessions...</p>
+        </Panel>
+      ) : filteredSessions.length ? (
+        <div className="learning-session-grid">
+          {filteredSessions.map((session) => (
+            <button
+              key={session.id}
+              className="learning-session-card"
+              onClick={() => navigate(`/learning/${session.id}`)}
+            >
+              <div className="learning-session-head">
+                <Badge tone={session.status === 'completed' ? 'success' : 'info'}>
+                  {session.status}
+                </Badge>
+                <span>{session.completionPercent}% complete</span>
               </div>
-
-              <label className="field">
-                <span>Title</span>
-                <input
-                  value={selectedItem.title}
-                  onChange={(event) =>
-                    updateLearningItem(selectedItem.id, { title: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Topic / Category</span>
-                <input
-                  value={selectedItem.topic}
-                  onChange={(event) =>
-                    updateLearningItem(selectedItem.id, { topic: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Next Step</span>
-                <textarea
-                  rows={4}
-                  value={selectedItem.nextStep}
-                  onChange={(event) =>
-                    updateLearningItem(selectedItem.id, { nextStep: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Resource Link</span>
-                <input
-                  value={selectedItem.resourceLink}
-                  onChange={(event) =>
-                    updateLearningItem(selectedItem.id, { resourceLink: event.target.value })
-                  }
-                />
-              </label>
-            </Panel>
-          ) : null}
+              <h3>{session.title}</h3>
+              <p>{session.subject || 'No subject yet'}</p>
+              <p className="learning-session-description">
+                {session.description || 'No session notes yet.'}
+              </p>
+              <div className="learning-session-stats">
+                <span>{session.sourceCount} sources</span>
+                <span>{session.flashcardCount} cards</span>
+                <span>{session.quizCount} quizzes</span>
+              </div>
+              <div className="learning-session-foot">
+                <strong>{session.confidenceScore}% confidence</strong>
+                <span>{formatShortDate(session.lastStudiedAt)}</span>
+              </div>
+            </button>
+          ))}
         </div>
       ) : (
         <div className="page-zero-state">
           <GraduationCapIcon className="page-zero-icon" />
-          <p>No learning topics yet. Add one to start tracking progress.</p>
+          <p>No learning sessions yet. Create one to start building a study workspace.</p>
         </div>
       )}
 
-      {isModalOpen ? (
-        <div className="overlay" onClick={closeModal}>
+      {createOpen ? (
+        <div className="overlay" onClick={closeCreateModal}>
           <div className="composer" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
-              <h3>Add Learning Topic</h3>
-              <button className="icon-button" onClick={closeModal}>
-                ×
+              <div>
+                <h3>New Learning Session</h3>
+                <p className="modal-subcopy">
+                  Create a topic workspace for sources, summaries, quizzes, and tutor chat.
+                </p>
+              </div>
+              <button className="icon-button" onClick={closeCreateModal}>
+                x
               </button>
             </div>
 
@@ -135,51 +289,45 @@ export function LearningPage() {
                 autoFocus
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. React Server Components"
+                placeholder="e.g. Cellular Respiration"
               />
             </label>
 
             <label className="field">
-              <span>Topic / Category</span>
+              <span>Subject</span>
               <input
-                value={topic}
-                onChange={(event) => setTopic(event.target.value)}
-                placeholder="e.g. Frontend"
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="e.g. Biology"
               />
             </label>
 
             <label className="field">
-              <span>Next Step</span>
-              <input
-                value={nextStep}
-                onChange={(event) => setNextStep(event.target.value)}
-                placeholder="What to do next?"
+              <span>Description</span>
+              <textarea
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="What is this session about?"
               />
             </label>
 
             <label className="field">
-              <span>Resource Link</span>
-              <input
-                value={resourceLink}
-                onChange={(event) => setResourceLink(event.target.value)}
-                placeholder="https://..."
+              <span>Goals</span>
+              <textarea
+                rows={3}
+                value={goals}
+                onChange={(event) => setGoals(event.target.value)}
+                placeholder="What should you be able to explain after studying?"
               />
             </label>
 
             <button
               className="primary-button modal-submit"
-              disabled={!title.trim()}
-              onClick={() => {
-                addLearningItem({
-                  title,
-                  topic,
-                  nextStep,
-                  resourceLink,
-                })
-                closeModal()
-              }}
+              disabled={!title.trim() || busyAction === 'create'}
+              onClick={() => void handleCreateSession()}
             >
-              Add Topic
+              {busyAction === 'create' ? 'Creating...' : 'Create Session'}
             </button>
           </div>
         </div>
